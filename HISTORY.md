@@ -17,6 +17,4 @@ commit.
 
 The point-simulation studies summarized in `evidence/` were carried out separately: the
 falsification campaign at ±10 %, the prospective 29-pulse cohort, the adversarial search and the
-radial ε scans. Their full archives (device values, all output dates, independent ODE replays,
-preregistration) are about 100 MB and are not committed here. They can be published as release
-assets.
+radial ε scans. Their full archives are not included in this repository.

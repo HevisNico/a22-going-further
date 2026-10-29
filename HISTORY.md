@@ -10,8 +10,10 @@
   launcher v2.3.1).
   https://github.com/HevisNico/a22-interval-replay
 
-The physical model is the one specified in the first repository (`model/CURRENT_SPEC.md` and
-`model/full_model_reference.md`). Its copy in `engine/reference/` is unchanged.
+The physical model is the one specified in the first repository. `model/` here holds its two files
+unchanged, and `engine/reference/` holds another unchanged copy of the reference definition.
+`proof/inherited_eps1e-3/` is that repository's `proof/` folder, copied unchanged from the same
+commit.
 
 The point-simulation studies summarized in `evidence/` were carried out separately: the
 falsification campaign at ±10 %, the prospective 29-pulse cohort, the adversarial search and the

@@ -117,6 +117,9 @@ The open problem at cell (14,0), and the change proposed next, are described in
 
 | Path | What it is |
 |---|---|
+| `kernel/` | The physical kernel R, restated in English, with the checksums showing that the executable kernel is unchanged |
+| `model/` | The original model texts: the reference definition (French) and the ±0.1 % specification |
+| `proof/` | The proof plan for wider boxes (`proof/going_further/`) and the complete inherited proof of the ±0.1 % result, with its Lean 4 files |
 | `engine/` | Verification engine, work in progress; `engine/CHANGES_FROM_BASE.diff` is the full diff against the base engine |
 | `tools/` | Single-cell replay from recorded parent outputs, diagnostics, and the evidence summarizer |
 | `evidence/` | Compact summary of the point-simulation studies (numerical evidence, not certificates) |

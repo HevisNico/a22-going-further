@@ -9,3 +9,5 @@ engine/test_diagnostics/
 engine/results/
 # campaign outputs are published as release assets, not committed
 campaign*/
+proof/inherited_eps1e-3/lean/.lake/
+proof/inherited_eps1e-3/lean/lake-manifest.json

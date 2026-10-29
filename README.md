@@ -112,6 +112,9 @@ The open problem at cell (14,0), and the change proposed next, are described in
 4. Scenario propagation between cells, then ±3 % and ±10 %.
 5. For each closed step: the terminal domain, the future-invariance check, and a short written
    proof organised by the three rules.
+6. For each closed step: the verification controls and the scientific controls of
+   [`CONTROLS.md`](CONTROLS.md). The preset-gain control in particular asks whether learning is
+   what provides the robustness.
 
 ## Repository contents
 
@@ -123,6 +126,7 @@ The open problem at cell (14,0), and the change proposed next, are described in
 | `engine/` | Verification engine, work in progress; `engine/CHANGES_FROM_BASE.diff` is the full diff against the base engine |
 | `tools/` | Single-cell replay from recorded parent outputs, diagnostics, and the evidence summarizer |
 | `evidence/` | Compact summary of the point-simulation studies (numerical evidence, not certificates) |
+| `CONTROLS.md` | Planned verification controls and scientific controls (no learning, preset gains, shuffled gains, gate off, energy, selectivity) |
 | `HISTORY.md` | Where the base engine, the model and the earlier results come from |
 
 ## Limits

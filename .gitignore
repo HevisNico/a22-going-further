@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+# native extensions are built on the target machine
+*.so
+*.o
+.venv/
+engine/build/
+engine/test_diagnostics/
+engine/results/
+# campaign outputs are published as release assets, not committed
+campaign*/

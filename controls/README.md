@@ -6,7 +6,7 @@
 | `point_simulator/` | The event-driven point simulator of R (`engine.py`), its network driver and device generator (`campaign.py`), and the independent direct-ODE integrator (`ode_reference.py`), copied unchanged from the point-simulation studies. They also provide fixed-gain and gain-only / recovery-only modes for the scientific controls of `../CONTROLS.md` |
 
 The simulator uses floating point and numerical root finding: its outputs are evidence, never
-certificates. Requirements: numpy and scipy (versions in `../engine/requirements.txt`).
+certificates. Requirements: numpy and scipy (versions in `../engine_eps3e-3/requirements.txt`).
 
 ```sh
 python3 controls/inclusion_check.py <campaign dir> results/<box>/controls/inclusion.json --per-kind 4

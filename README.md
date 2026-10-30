@@ -15,12 +15,12 @@ explicit quiescent domain, and that afterwards it transmits the intervals betwee
 "Certified" means a computer-assisted enclosure of every admissible trajectory, finite
 certificates rechecked by independent programs, and written arguments. They hold under the
 explicit execution assumptions A1–A4. The proof is not machine-checked as a whole and has not been
-independently reviewed ([Limits](#limits)).
+independently reviewed ([Limits](#limits)). Reviews are welcome: see [`REVIEW.md`](REVIEW.md).
 
 ## The kernel R
 
 Full statement in English: [`kernel/README.md`](kernel/README.md). The original definition, in
-French, is in [`model/`](model/). The executable kernel, `engine/kernel/`, is byte-identical to its
+French, is in [`model/`](model/). The executable kernel, `engine_eps3e-3/kernel/`, is byte-identical to its
 reference (`kernel/KERNEL_SHA256SUMS`).
 
 Each cell has a main unit and, on each of its three input ports, an auxiliary unit.
@@ -89,7 +89,7 @@ at 0, 8, …, 216:
 
 ## How it is certified
 
-1. **Enclosure of training.** `engine/` propagates outward-rounded affine enclosures of every
+1. **Enclosure of training.** `engine_eps3e-3/` propagates outward-rounded affine enclosures of every
    admissible trajectory, cell by cell and layer by layer. It covers every compatible event order
    and refuses when it cannot decide. Each layer is re-read by a separate process.
 2. **Three generic rules.** Every mechanism of the engine instantiates one of three rules, each
@@ -99,7 +99,10 @@ at 0, 8, …, 216:
    - monotone comparison and hull.
 
    The 17 mechanisms beyond the base engine, with their obligations, are listed in
-   [`proof/going_further/MECHANISMS.md`](proof/going_further/MECHANISMS.md). The base coverage
+   [`proof/going_further/MECHANISMS.md`](proof/going_further/MECHANISMS.md), and the written
+   argument of each one is in
+   [`proof/going_further/MECHANISM_ARGUMENTS.md`](proof/going_further/MECHANISM_ARGUMENTS.md). The
+   census of a campaign shows which mechanisms it used; the arguments show why they are correct. The base coverage
    theorem and its extensions are in [`proof/inherited_eps1e-3/`](proof/README.md).
 3. **Finite certificates.** `certify/` extracts the exact terminal state and audits lineage, clocks
    and every recorded mechanism. It then certifies the initial section and the future regime twice:
@@ -125,7 +128,7 @@ and re-audits everything, and recomputes the engine's `kernel_id`:
 python3 -I certify/verify.py --box results/eps3e-3 <campaign dir> --engine <engine dir>
 ```
 
-To run a campaign yourself, see [`engine/README.md`](engine/README.md).
+To run a campaign yourself, see [`engine_eps3e-3/README.md`](engine_eps3e-3/README.md).
 
 ## Beyond ±1 %
 
@@ -150,7 +153,7 @@ Point simulations of the full network (numerical evidence, summarized in
 |---|---|
 | `kernel/` | The kernel R in English, and the checksums of the executable kernel |
 | `model/` | The original model definition (French) and specification |
-| `engine/` | The verification engine; `CHANGES_FROM_BASE.diff` against the base engine |
+| `engine_eps3e-3/` | The verification engine of the ±0.3 % box, frozen; `CHANGES_FROM_BASE.diff` against the base engine. Each box has its own engine directory |
 | `certify/` | Certification tools and `verify.py` |
 | `results/` | One folder per certified box: statement, campaign identity, run manifest, certificates, controls |
 | `proof/` | `going_further/`: proof plan, mechanisms and their obligations, notes. `inherited_eps1e-3/`: the base coverage theorem, its extensions and Lean 4 files |
@@ -158,6 +161,7 @@ Point simulations of the full network (numerical evidence, summarized in
 | `evidence/` | Summary of the point-simulation studies |
 | `tools/` | Single-cell replay and diagnostics |
 | `CERTIFICATION.md`, `CONTROLS.md` | Certification procedure; planned verification and scientific controls |
+| `REVIEW.md` | Call for review: self-contained tasks on the written arguments |
 | `HISTORY.md` | Sources of the base engine, model and proof |
 
 ## Limits
@@ -169,8 +173,8 @@ Point simulations of the full network (numerical evidence, summarized in
   - correct arithmetic runtime and native binaries;
   - fail-closed assertions;
   - namespace discipline.
-- The written arguments for the mechanisms have not been independently reviewed. Only selected
-  lemmas are machine-checked in Lean.
+- The written arguments for the mechanisms (`proof/going_further/MECHANISM_ARGUMENTS.md`) have not
+  been independently reviewed. Only selected lemmas are machine-checked in Lean.
 - The result concerns this realization R, with this graph and this protocol. It is not a statement
   about spiking networks in general. Whether learning gives an advantage over a network with preset
   gains is a separate question: see the scientific controls in `CONTROLS.md`.

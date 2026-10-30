@@ -30,5 +30,5 @@ python3 -I certify/verify.py --box results/eps3e-3 run/campagne --engine run/sou
 ```
 
 The third command checks every output file against `RUN_MANIFEST.json`, reruns the terminal
-extraction and every audit, checks that the as-run engine has the sources of `engine/`, recomputes
+extraction and every audit, checks that the as-run engine has the sources of `engine_eps3e-3/`, recomputes
 the archived `kernel_id`, then reruns the record checks. Expected: 12 PASS, 0 FAIL.

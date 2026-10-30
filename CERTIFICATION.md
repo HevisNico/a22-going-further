@@ -16,7 +16,10 @@ Nothing in the statement changes during the campaign.
 
 ## 2. Run the campaign
 
-Use the committed `engine/`, from a clean build, in a new directory (see `engine/README.md`). The
+Each box has its own engine directory, `engine_<box>/` (the ±0.3 % box: `engine_eps3e-3/`). Once a
+box is certified, its engine directory is frozen; changes for a wider box go into a new directory.
+Use the box's committed engine directory, from a clean build, in a new output directory (see its
+`README.md`). The
 campaign must reach 18/18 layers with no manual intervention. If it refuses, the box is not
 certified: the engine is changed, a new mechanism is documented in
 `proof/going_further/MECHANISMS.md`, and the campaign is rerun from layer 1.
@@ -24,7 +27,7 @@ certified: the engine is changed, a new mechanism is documented in
 ## 3. Certify the records
 
 ```sh
-python3 -I certify/certify_box.py <campaign dir> results/<box>
+python3 -I certify/certify_box.py <campaign dir> results/<box> --engine-dir engine_<box>
 ```
 
 Each step runs as a separate process, standard library only, and none imports the engine.
@@ -44,7 +47,7 @@ Each step runs as a separate process, standard library only, and none imports th
 The campaign directory and the as-run engine, with its native binaries, are then published as
 assets of a release `<box>-campaign`. Their SHA-256 and the full verification commands go into
 `results/<box>/campaign/RELEASE_ASSETS.md`. `results/<box>/` is committed:
-`campaign/campaign.json`, `campaign/RUN_MANIFEST.json`, `campaign/RELEASE_ASSETS.md` and
+`campaign/campaign.json`, `campaign/RUN_MANIFEST.json`, `campaign/ENGINE`, `campaign/RELEASE_ASSETS.md` and
 `terminal/*.json`. A box is not published until its release exists.
 
 ## 4. Verify, as anyone else would
@@ -56,12 +59,12 @@ python3 -I certify/verify.py --box results/<box> <campaign dir> --engine <as-run
 ```
 
 The last form also recomputes the archived `kernel_id` from the as-run engine and checks that its
-sources are the committed `engine/`.
+sources are the box's committed engine directory, named in `results/<box>/campaign/ENGINE`.
 
 Every derived file (initial section, both future certificates, Q28) is regenerated and compared
 byte for byte with the committed one, and Q28 is rebuilt from the regenerated certificate, not from
 the committed one. The ε of `campaign.json`, of the terminal extraction, of the certificates and of
-the log must agree exactly.
+the log must agree exactly. Every certificate hash cited by the certification log must be the committed certificate's.
 
 ## 5. Write the proof of what was used
 

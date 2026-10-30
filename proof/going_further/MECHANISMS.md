@@ -13,7 +13,8 @@ The base mechanisms are proved in `../inherited_eps1e-3/`:
 - the no-fire cover.
 
 A certified box needs a written argument for every mechanism its census shows as used. The census
-is `results/<box>/terminal/mechanism_usage.json`.
+is `results/<box>/terminal/mechanism_usage.json`. The arguments for the mechanisms of
+`engine_eps3e-3/` are in [`MECHANISM_ARGUMENTS.md`](MECHANISM_ARGUMENTS.md).
 
 **Common premise of every intersection below.** If two enclosures are each valid pointwise for
 every parameter point, their intersection is valid. Intersecting can lose affine correlation, but

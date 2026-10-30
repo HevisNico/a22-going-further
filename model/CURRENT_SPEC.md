@@ -78,7 +78,7 @@ The substitutions are justified by the
 [general-epsilon future extension](../proof/extensions/FUTURE_INVARIANCE_GENERAL_EPS_EN.txt).
 The [proof index](../proof/README.md) gives the complete reading order.
 
-The archived model and its copy in `engine/reference/` are retained byte for byte.
+The archived model and its copy in `engine_eps3e-3/reference/` are retained byte for byte.
 In particular, the engine copy participates in the recorded program identity.
 
 ## Result and validation boundary
@@ -96,7 +96,7 @@ in a fixed device and learned state, hence exact preservation of source interval
 | Same command with a full campaign directory | Also checks 488 output files and reproduces terminal extraction, lineage/clocks and commutation diagnostics; normally 9 PASS |
 | Same command with the campaign and `--engine` as-run directory | Adds static engine-source/binary identity and archived kernel_id checks using the recorded environment; normally 11 PASS, without importing the engine |
 | Same command with `--engine` and `--check-runtime` | Also loads the engine and checks the actual interpreter, dependency versions and native binaries against the recorded environment; normally 12 PASS with the matching runtime |
-| Fresh `engine/run.py` campaign | Re-executes the training enclosure algorithm with the local build |
+| Fresh `engine_eps3e-3/run.py` campaign | Re-executes the training enclosure algorithm with the local build |
 | Lean files | Check selected mathematical lemmas under explicit hypotheses |
 
 The ordinary CI runs engine tests and the first certificate command, plus a separate

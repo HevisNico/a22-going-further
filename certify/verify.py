@@ -5,7 +5,8 @@
                                                # from the full outputs (release asset of that box)
     python3 -I certify/verify.py --box results/eps3e-3 [<campaign dir>] --engine <engine dir>
         # also check that the as-run engine (release asset, with its native binaries) has the
-        # sources of engine/ and recompute the archived kernel_id using the recorded environment.
+        # sources of the box's engine directory (named in <box>/campaign/ENGINE, e.g.
+        # engine_eps3e-3/) and recompute the archived kernel_id using the recorded environment.
         # This is a static file check: it does not import or execute the archived engine.
     python3 -I certify/verify.py --box ... [<campaign dir>] --engine <engine dir> --check-runtime
         # additionally load the engine and require the actual Python, numpy, scipy and native
@@ -31,6 +32,7 @@ import json
 import os
 import subprocess
 import sys
+import re
 import tempfile
 from fractions import Fraction
 from pathlib import Path
@@ -109,6 +111,15 @@ print(json.dumps(dict(environment=environment, native_files=native_files)))
     return json.loads(out.stdout.strip().splitlines()[-1])
 
 
+def box_engine():
+    """The repository engine directory of the box, named in <box>/campaign/ENGINE."""
+    name = (BOX / 'campaign' / 'ENGINE').read_text().strip()
+    path = (REPO / name).resolve()
+    if path.parent != REPO or not name.startswith('engine_') or not (path / 'run.py').is_file():
+        raise ValueError(f'invalid engine directory in campaign/ENGINE: {name!r}')
+    return path
+
+
 def report(name, ok, detail=''):
     RESULTS.append(ok)
     print(f'[{"PASS" if ok else "FAIL"}] {name}' + (f': {detail}' if detail else ''), flush=True)
@@ -179,19 +190,20 @@ def engine_checks(engine, check_runtime=False):
                 and (str(p.relative_to(base)) in top or p.relative_to(base).parts[0] in ('affine', 'kernel'))}
 
     def contents():
-        # Sources are compared with engine/; binaries are taken from the as-run engine only, so native
-        # extensions built locally inside engine/ (for a test run) do not enter the comparison.
-        run_files, repo_files = identity_files(engine), identity_files(REPO / 'engine')
+        # Sources are compared with the box's engine directory; binaries are taken from the as-run
+        # engine only, so native extensions built locally in the repository do not enter the comparison.
+        source = box_engine()
+        run_files, repo_files = identity_files(engine), identity_files(source)
         a = {x for x in run_files if not x.endswith(binary_suffixes)}
         b = {x for x in repo_files if not x.endswith(binary_suffixes)}
         binaries = {x for x in run_files if x.endswith(binary_suffixes)}
-        differ = sorted(x for x in a & b if sha(engine / x) != sha(REPO / 'engine' / x))
+        differ = sorted(x for x in a & b if sha(engine / x) != sha(source / x))
         extra = sorted(a - b) + sorted(b - a)
         campaign = json.loads((BOX / 'campaign' / 'campaign.json').read_text())
         natives = [x for x in binaries if x.startswith('affine/_rounding_native')]
         native_ok = len(natives) == 1 and sha(engine / natives[0]) == campaign['environment']['native_sha256']
         report('as-run engine sources and binaries', not differ and not extra and len(binaries) == 2 and native_ok,
-               f'{len(a & b)} sources identical to engine/, {len(binaries)} binaries, rounding binary '
+               f'{len(a & b)} sources identical to {source.name}/, {len(binaries)} binaries, rounding binary '
                + ('matches campaign.json' if native_ok else 'DOES NOT match campaign.json'))
     check('as-run engine sources and binaries', contents)
 
@@ -235,6 +247,14 @@ def box_epsilon():
     return eps
 
 
+def log_consistency():
+    """Every certificate hash cited by the certification log must be the committed certificate's."""
+    cited = set(re.findall(r'certificate_sha256\W+([0-9a-f]{64})', (TERMINAL / 'certification_log.json').read_text()))
+    actual = sha(TERMINAL / 'future_certificate.json')
+    report('certification log cites the committed certificate', bool(cited) and cited == {actual},
+           f'cited {sorted(c[:8] for c in cited)}, committed {actual[:8]}')
+
+
 def record_checks(tmp):
     def initial():
         eps = box_epsilon()
@@ -262,6 +282,7 @@ def record_checks(tmp):
         run('build_q_domain.py', terminal, cert, q)
         report('Q28 domain', same_bytes(q, TERMINAL / 'invariant_domain_Q28.json'))
     check('future certificates', future)
+    check('certification log cites the committed certificate', log_consistency)
 
 
 def main():

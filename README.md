@@ -149,8 +149,42 @@ a finished campaign into a certified box is [`CERTIFICATION.md`](CERTIFICATION.m
 - The result, when obtained, will concern this realization of R. It will not concern spiking
   networks in general.
 
-> **Made with AI.** Code, diagnostics and documents are produced with Claude (Anthropic) and
-> ChatGPT (OpenAI) under the direction of Nicolas Breuillaud.
+## How this was built
+
+This work is done with two AI assistants, **Claude** (Anthropic) and **ChatGPT** (OpenAI), under
+the direction of Nicolas Breuillaud.
+
+**Nicolas Breuillaud** is the author of the model, the Reset Operator and the research questions.
+He decides each step and runs the campaigns.
+
+**ChatGPT** produced:
+- the point simulator and the independent ODE integrator;
+- the falsification campaigns at ±10 %, the prospective 29-pulse cohort, the adversarial search and
+  the ε scans;
+- the single-cell set-valued verifier;
+- several engine mechanisms: the charge-join envelope, the restored READY memory, the gain range at
+  admission, the E2 prefix order, the fast-window retry, `charge_bound`, the relative first
+  crossing and the no-fire recovery group.
+
+**Claude** produced:
+- the audits of each delivery;
+- the diagnosis of each campaign refusal;
+- the engine mechanisms R2, E2, M, the peak fallback, H, F, Fix T, Fix T′ and the KMAX change;
+- the certification tools in `certify/` and `controls/`;
+- the Lean formalization of the strict-root core;
+- the documentation of this repository.
+
+Each assistant also checked the other's work.
+
+The author relies on the assistants for parts of the mathematics and of the code that he has not
+checked in full himself. Hence the safeguards:
+- every campaign is bound to its exact code by hashes;
+- every layer is re-read by a separate process;
+- every certificate is recomputed by an independent program;
+- every mechanism has a stated proof obligation;
+- point simulations must fall inside the certified enclosures.
+
+No independent human review has been done yet.
 
 ## License
 

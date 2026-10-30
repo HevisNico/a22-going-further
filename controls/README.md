@@ -9,8 +9,11 @@ The simulator uses floating point and numerical root finding: its outputs are ev
 certificates. Requirements: numpy and scipy (versions in `../engine_eps3e-3/requirements.txt`).
 
 ```sh
-python3 controls/inclusion_check.py <campaign dir> results/<box>/controls/inclusion.json --per-kind 4
+python3 controls/inclusion_check.py <campaign dir> <new inclusion report.json> --per-kind 4
 ```
+
+The committed report is `results/eps3e-3/controls/inclusion.json` (56 devices, 8 per motif, seed 11).
+Preserve it when running new controls. For that sample size and seed, select `--per-kind 8 --seed 11`.
 
 SHA-256 of the copied simulator files, as received:
 

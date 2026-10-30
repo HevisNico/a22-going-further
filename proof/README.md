@@ -2,7 +2,7 @@
 
 | Folder | What it is |
 |---|---|
-| [`going_further/`](going_further/PROOF_PLAN.md) | The proof plan for wider boxes: the statement to prove at each ε, the three generic rules, the 17 mechanisms and their obligations. The ±0.3 % box is certified; the written arguments for its mechanisms are in `going_further/MECHANISM_ARGUMENTS.md`. |
+| [`going_further/`](going_further/PROOF_PLAN.md) | The proof of the ±0.3 % / 28-pulse result: its statement, three generic rules, and the 17 mechanisms and their obligations. The written arguments are in `going_further/MECHANISM_ARGUMENTS.md`. The historical directory name is retained so existing references remain valid. |
 | `inherited_eps1e-3/` | The complete proof of the ±0.1 % / 28-pulse result (written argument, extensions, Lean 4 files), copied unchanged from the base repository (see `../HISTORY.md`). |
 
 `inherited_eps1e-3/` is kept byte-identical because its documents cite each other and are cited by

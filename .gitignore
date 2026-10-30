@@ -11,3 +11,6 @@ engine/results/
 campaign*/
 proof/inherited_eps1e-3/lean/.lake/
 proof/inherited_eps1e-3/lean/lake-manifest.json
+
+# The campaign identity and run manifest of each certified box are committed.
+!results/*/campaign/

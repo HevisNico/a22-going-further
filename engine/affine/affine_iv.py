@@ -27,7 +27,7 @@ else:
         return o
 
 TINY=math.nextafter(0.0,math.inf)
-KMAX=256   # v3: 96 -> 256 (same measured time; fewer correlation-destroying truncations)
+KMAX=1024  # precision parameter only; truncation is sound at any value
 FRESH=None
 ETHRESH=1e-9
 _COUNTER=[0]

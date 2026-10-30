@@ -19,7 +19,7 @@ Both are planned **before** each campaign. A control is reported whatever its ou
 | Independent audits | Terminal extraction, lineage and clock audit, and an audit of every use of the new mechanisms (E2 firings, M re-anchorings, H splits, F forks), each rerun from the recorded outputs |
 | Initial section | Its finite inequalities, rechecked at each ε |
 | Future regime | The future certificate, recomputed by two independent programs (directed integers and directed decimals) |
-| Inclusion of point simulations | The firing dates and learned gains of sampled devices, including the adversarial ones, must lie inside the certified enclosures. This plays the role of the A14 reference comparison. One sample outside the enclosure is a soundness failure |
+| Inclusion of point simulations | The firing counts and firing dates of sampled devices must lie inside the certified enclosures (`controls/inclusion_check.py`; learned gains are a planned extension). This plays the role of the A14 reference comparison. One sample outside the enclosure is a soundness failure |
 | Refusals | Every refusal is kept with its reason. A refusal is never counted as a success; a budget overflow is a refusal |
 | Regression tests | Each engine change comes with tests, including at least one case where it must refuse |
 | Lean | The abstract core of each generic rule and of each new lemma is checked in Lean 4 without `sorry` |

@@ -44,6 +44,10 @@ The revised protocol counts the source pulse at **230 as a 29th training (condit
 and starts the data at **250**. The pulse at 230 makes every active cell fire and return exactly to
 rest, so the data start from a reset state. Nothing in R changes.
 
+For **±0.3 % and ±1 %** the original 28-pulse protocol is kept: along every tested motif, exact
+rest at 230 and first-interval fidelity hold up to about 1.48 %, and the statement then stays the
+one already certified at ±0.1 %. The 29-pulse protocol is used from ±3 % on.
+
 ## The box ladder
 
 The work proceeds by widening the box step by step. Each step must close before the next one is
@@ -98,18 +102,22 @@ once per actuation history.
 |---|---|---|
 | Base engine | layer 8: slow recovery inside an uncertain event group | 7 / 18 |
 | + R2 (existing recovery resolver on the event-group path) | layer 14: firing inside an uncertain event group | 13 / 18 |
-| + E2, M, peak fallback, H, F | layer 14: 11 of 12 cells pass in single-cell replays; cell (14,0) still refuses | ≥ 13 |
+| + E2, M, H, F and further enclosure mechanisms | cell (15,0), in targeted replays | 14 / 18 |
+| + Fix T (READY fire root relative to an admitted pulse) | layer 18 | 17 / 18 |
+| + KMAX 1024 (keeps 4× more affine correlations) | layer 18: 9 of 12 cells accepted | 17 / 18 |
+| + Fix T′ (recovery return relative to the latest mark), the committed engine | the three remaining cells accepted in targeted replays | fresh campaign pending |
 
-The open problem at cell (14,0), and the change proposed next, are described in
-[`engine/README.md`](engine/README.md). No full campaign has been run with this engine yet.
+Every mechanism and its proof obligation is listed in
+[`proof/going_further/MECHANISMS.md`](proof/going_further/MECHANISMS.md). The procedure that turns
+a finished campaign into a certified box is [`CERTIFICATION.md`](CERTIFICATION.md).
 
 ## Next steps
 
-1. Switch the engine calendar to the 29-pulse protocol (terminal cut at 250).
-2. Close cell (14,0): replace the extreme-date comparison of lemma E2 with the exact correlated
-   charge (rule 1). Then run the ±0.3 % campaign and its audits.
-3. ±1 %, with the same engine if possible.
-4. Scenario propagation between cells, then ±3 % and ±10 %.
+1. A fresh ±0.3 % campaign with the committed engine, then `certify/certify_box.py` and the
+   written arguments for every mechanism used.
+2. The same for ±1 %, with the same engine if possible.
+3. The 29-pulse calendar (terminal cut at 250), scenario propagation between cells, then ±3 % and
+   ±10 %.
 5. For each closed step: the terminal domain, the future-invariance check, and a short written
    proof organised by the three rules.
 6. For each closed step: the verification controls and the scientific controls of
@@ -123,7 +131,10 @@ The open problem at cell (14,0), and the change proposed next, are described in
 | `kernel/` | The physical kernel R, restated in English, with the checksums showing that the executable kernel is unchanged |
 | `model/` | The original model texts: the reference definition (French) and the ±0.1 % specification |
 | `proof/` | The proof plan for wider boxes (`proof/going_further/`) and the complete inherited proof of the ±0.1 % result, with its Lean 4 files |
-| `engine/` | Verification engine, work in progress; `engine/CHANGES_FROM_BASE.diff` is the full diff against the base engine |
+| `engine/` | Verification engine; `engine/CHANGES_FROM_BASE.diff` is the full diff against the base engine |
+| `certify/` | Certification tools: run manifest, terminal extraction, audits, mechanism census, initial section, future certificate and its independent check, Q28, and `verify.py` |
+| `results/` | One folder per certified box (none yet) |
+| `CERTIFICATION.md` | The procedure from a finished campaign to a certified box |
 | `tools/` | Single-cell replay from recorded parent outputs, diagnostics, and the evidence summarizer |
 | `evidence/` | Compact summary of the point-simulation studies (numerical evidence, not certificates) |
 | `CONTROLS.md` | Planned verification controls and scientific controls (no learning, preset gains, shuffled gains, gate off, energy, selectivity) |

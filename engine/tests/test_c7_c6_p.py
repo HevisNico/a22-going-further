@@ -70,12 +70,9 @@ class RemarkP(unittest.TestCase):
 
 class _Probe:
     def __init__(self, lo, hi): self.lo, self.hi = lo, hi
-class _Gap:
-    def __init__(self, h): self.h = h
-    def nonnegative(self): return I(0, self.h)
 class _Clock:
-    def __init__(self, h): self.h = h
-    def minus(self, other): return _Gap(self.h)
+    def __init__(self, at): self.at = I(at)
+    def minus(self, other): return self.at - other.at
 class _Stub:
     """Minimal b for cluster_memory_cover: charge(u) is a monotone formula
     evaluated exactly at the ends of each time piece."""
@@ -83,7 +80,9 @@ class _Stub:
     def __init__(self, charge):
         self.charge = charge
         self.dep = self
-    def shift(self, t, u, key): return _Probe(u.lo, u.hi)
+    def shift(self, t, u, key):
+        at = t.at + u
+        return _Probe(at.lo, at.hi)
     def evaluate(self, memory, probe):
         # Like an interval evaluation: exact extremes plus an overestimate
         # proportional to the width of the time piece.
@@ -95,7 +94,7 @@ class _Stub:
 
 class LemmaC6(unittest.TestCase):
     def certify(self, charge, H=D(1), s=None):
-        s = s or dict(p=0, memory=object(), t=None)
+        s = s or dict(p=0, memory=object(), t=_Clock(0))
         return cluster_memory_cover.certify(_Stub(charge), s, _Clock(H))
 
     def test_below_threshold_accepted(self):

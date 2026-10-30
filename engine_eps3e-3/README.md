@@ -1,6 +1,9 @@
-# Verification engine
+# Verification engine of the ±0.3 % box
 
-The engine of the ±0.1 % / 28-pulse result, extended for wider boxes. The physical kernel R in
+This is the exact engine of the certified ±0.3 % campaign (`../results/eps3e-3/`, which names it in
+`campaign/ENGINE`). It is frozen: changes for a wider box go into that box's own engine directory.
+
+It is the engine of the ±0.1 % / 28-pulse result, extended for wider boxes. The physical kernel R in
 `kernel/` is unchanged: `../kernel/KERNEL_SHA256SUMS` lists its 52 files, byte-identical to the
 base. `reference/full_model_reference.md` is the model, in French. `CHANGES_FROM_BASE.diff` is the
 complete diff against the base engine. `README_EN.txt`, `README_C7_EN.txt`, `VALIDATION_EN.txt` and
@@ -20,14 +23,14 @@ The calendar is the 28-pulse protocol (sources at 0, 8, …, 216; terminal cut a
 | Fix T + KMAX 1024 + Fix T′ (this engine) | **18/18 layers, no refusal** (≈ 32 min of layer computation) | all 12 accepted; certified in `../results/eps3e-3/` |
 
 A box is certified only by a fresh campaign with this exact engine, followed by
-`certify/certify_box.py` (see `../CERTIFICATION.md`).
+`certify/certify_box.py --engine-dir engine_eps3e-3` (see `../CERTIFICATION.md`).
 
 ## Build, test, launch
 
 Python 3.12 or 3.13, a C compiler, OpenSSL headers.
 
 ```sh
-cd engine
+cd engine_eps3e-3
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt        # numpy 2.3.5, scipy 1.17.0
 python build_all_native.py

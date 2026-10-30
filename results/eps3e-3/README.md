@@ -27,7 +27,7 @@ machine-checked as a whole, and it has not been independently reviewed.
 
 | | |
 |---|---|
-| Engine | `engine/` of this repository; `kernel_id` `c57d43fc…`, run `afd81b4e…` (`campaign/campaign.json`) |
+| Engine | `engine_eps3e-3/` of this repository (named in `campaign/ENGINE`); `kernel_id` `c57d43fc…`, run `afd81b4e…` (`campaign/campaign.json`) |
 | Layers accepted | 18 / 18, each re-read by a separate verifier process; no refusal |
 | Cells | 216 payloads verified; 191 active cells at exact rest at 230; 540 auxiliary ports at exact rest |
 | Network emissions during training | 2,202 |

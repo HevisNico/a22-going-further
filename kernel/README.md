@@ -7,9 +7,9 @@ in English. The authoritative texts are in [`../model/`](../model/):
   7 are historical;
 - `CURRENT_SPEC.md` is the specification of the ±0.1 % / 28-pulse result.
 
-The executable kernel is `../engine/kernel/`. `KERNEL_SHA256SUMS` lists its 52 source files. They
+The executable kernel is `../engine_eps3e-3/kernel/`. `KERNEL_SHA256SUMS` lists its 52 source files. They
 are byte-identical to the kernel of the base engine, so any change made for wider boxes lives
-outside it, in `../engine/affine/`.
+outside it, in `../engine_eps3e-3/affine/`.
 
 ## Network and source
 

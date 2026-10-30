@@ -28,6 +28,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('campaign', type=Path)
     parser.add_argument('box', type=Path)
+    parser.add_argument('--engine-dir', required=True,
+                        help='repository engine directory the campaign ran with, e.g. engine_eps1e-2')
     parser.add_argument('--return-bound', default='19')
     args = parser.parse_args()
     campaign, box = args.campaign.resolve(), args.box.resolve()
@@ -37,6 +39,9 @@ def main():
     terminal = box / 'terminal'
     terminal.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(campaign / 'campaign.json', box / 'campaign' / 'campaign.json')
+    if not args.engine_dir.startswith('engine_') or '/' in args.engine_dir:
+        parser.error('--engine-dir must name a top-level engine_* directory')
+    (box / 'campaign' / 'ENGINE').write_text(args.engine_dir + '\n')
     t = terminal
     steps = [
         ('run manifest', ['make_run_manifest.py', campaign, box / 'campaign' / 'RUN_MANIFEST.json']),

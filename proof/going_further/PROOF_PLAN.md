@@ -1,31 +1,30 @@
-# Proof plan for wider boxes
+# Proof plan for the ±0.3 % / 28-pulse result
 
 **Status:** the three rules are stated here, every engine mechanism is reduced to one of them in
-[`MECHANISMS.md`](MECHANISMS.md), and the written argument of every mechanism of the ±0.3 % engine
-is in [`MECHANISM_ARGUMENTS.md`](MECHANISM_ARGUMENTS.md). The ±0.3 % box is certified
-(`../../results/eps3e-3/`). These arguments have not been independently reviewed.
+[`MECHANISMS.md`](MECHANISMS.md), and the written argument of every mechanism used by the ±0.3 %
+campaign is in [`MECHANISM_ARGUMENTS.md`](MECHANISM_ARGUMENTS.md). The published result is in
+[`../../results/eps3e-3/`](../../results/eps3e-3/README.md). These arguments have not been independently
+reviewed. This document concerns that result only.
 
-## 1. The statement, for each ε
+## 1. The statement
 
-Let B_ε be the box of the five per-port parameters (`../../kernel/README.md`). The kernel R and the
-initial family are unchanged. The protocol depends on the box:
-
-- **±0.3 % and ±1 %:** 28 source pulses on lane 0, at 0, 8, …, 216; terminal cut at T = 230; domain
-  Q = Q28(ε).
-- **From ±3 %:** a 29th, conditioning pulse at 230; terminal cut and data start at T = 250; domain
-  Q = Q29(ε). It is needed because a READY cell can keep a residual charge at 230 (`../../evidence/`).
+Let B_ε be the box of the five per-port parameters (`../../kernel/README.md`), with **ε = 3e-3**.
+The kernel R and initial family are unchanged from the inherited result. The protocol uses
+**28 source pulses** on lane 0, at 0, 8, …, 216; terminal cut **T = 230**; domain **Q = Q28(ε)**.
+The terminal cut is not an additional training pulse.
 
 For every device in B_ε and every admissible initial state:
 
-- **T1, training.** At t = T the network lies in the explicit domain Q.
-- **T2, future.** From Q, for every sequence of source pulses spaced by at least G, each active
-  cell fires exactly once per pulse, and the network returns to Q before the next pulse.
+- **T1, training.** At t = 230 the network lies in the explicit domain Q28(ε).
+- **T2, future.** From Q28(ε), for every sequence of source pulses spaced by at least 20, each
+  active cell fires exactly once per pulse, the other cells stay silent, and the network returns
+  to Q28(ε) strictly before 19 time units after each source pulse.
 - **T3, exact transmission.** Each active cell answers with a latency that is fixed for its device
   and learned state. The intervals between source pulses are therefore transmitted exactly through
   the 18 layers.
 
-The ε ladder is 0.3 %, 1 %, 3 %, 10 %. The gap G, the active mask and the explicit form of Q are
-outputs of each step, not assumptions. Each step is closed before the next one is attempted.
+The active mask (191 of 216 cells) and explicit domain are outputs of certification. The future
+check establishes a global return before 12.79144, satisfying the stated contract.
 
 ## 2. The chain of the proof
 
@@ -34,14 +33,12 @@ The chain is the inherited one (`../inherited_eps1e-3/README.md`):
 > model → initial section → training coverage → entry into the terminal domain → future regime →
 > exact transmission.
 
-What changes:
-
-| Step | Inherited | What is new |
+| Step | Inherited | Application at ±0.3 % |
 |---|---|---|
-| Initial section | general-ε argument | Recheck its inequalities at each ε (finite check) |
-| Training coverage | coverage theorem, lemma E, C7/C6/P | The engine changes of section 4, each reduced to one rule of section 3 |
-| Terminal domain | exact extraction at T | From ±3 %, cut at 250. Beyond about 1.5 %, the domain is the **union over training histories** (scenario leaves) |
-| Future regime | future invariance with a fixed masked/influential partition | The partition is recomputed from the terminal domain, not imposed. Each gain box is the stored box intersected with exp of the stored log-gain bounds. From ±3 %, ports may have to be classified **device by device** |
+| Initial section | general-ε argument | Finite inequalities rechecked at ε = 3e-3 |
+| Training coverage | coverage theorem, lemma E, C7/C6/P | The engine mechanisms of section 4, each reduced to one rule of section 3 |
+| Terminal domain | exact extraction at T | Extraction at T = 230; exact rest of all active cells |
+| Future regime | future invariance | The active and masked/influential partitions are recomputed from the terminal domain. Each gain box is intersected with exp of the stored log-gain bounds |
 | Exact transmission | fixed latencies | Unchanged argument |
 
 ## 3. The three rules
@@ -79,8 +76,8 @@ Each change only replaces a former refusal. Computations the base engine accepte
 The 17 mechanisms, their code locations, what each records and the rule it instantiates are listed
 in [`MECHANISMS.md`](MECHANISMS.md). Fix T and Fix T′ have their own notes
 ([`PROOF_NOTE_FIX_T.md`](PROOF_NOTE_FIX_T.md), [`PROOF_NOTE_FIX_T2.md`](PROOF_NOTE_FIX_T2.md)).
-For each certified box, `terminal/mechanism_usage.json` lists which mechanisms were actually used;
-only those need a written argument for that box.
+The campaign census, `results/eps3e-3/terminal/mechanism_usage.json`, lists which mechanisms were
+actually used; only those enter the written argument for this result.
 
 ## 5. What is kept from the inherited assumptions
 
@@ -92,12 +89,9 @@ The execution assumptions A1–A4 are unchanged:
 
 The new code adds no other trusted component.
 
-## 6. Order of work
+## 6. Remaining review work
 
-1. ±0.3 %: **done** (`../../results/eps3e-3/`), with the written arguments of its mechanisms.
-   Remaining: independent review.
-2. ±1 %: same engine, same 28-pulse protocol; certify with `certify/certify_box.py`.
-3. The 29-pulse protocol (cut at 250) and its calendar bridge, as for 28 pulses.
-4. Scenario propagation between cells, then ±3 % and ±10 %.
-5. Lean: the abstract cores of rules 2 and 3, next to the inherited `StrictRoot.lean` and
-   `FirstCrossing.lean`.
+The ±0.3 % campaign, finite certificates and written arguments are published. Independent review
+of the arguments and their implementation remains open; the concrete tasks are in
+[`../../REVIEW.md`](../../REVIEW.md). The selected inherited Lean lemmas remain part of the
+verification material; the proof as a whole is not machine-checked.

@@ -8,8 +8,8 @@ in English. The authoritative texts are in [`../model/`](../model/):
 - `CURRENT_SPEC.md` is the specification of the ±0.1 % / 28-pulse result.
 
 The executable kernel is `../engine_eps3e-3/kernel/`. `KERNEL_SHA256SUMS` lists its 52 source files. They
-are byte-identical to the kernel of the base engine, so any change made for wider boxes lives
-outside it, in `../engine_eps3e-3/affine/`.
+are byte-identical to the kernel of the base engine. The verification mechanisms added for the
+±0.3 % result live outside it, in `../engine_eps3e-3/affine/`.
 
 ## Network and source
 
@@ -35,7 +35,7 @@ outside it, in `../engine_eps3e-3/affine/`.
 | nominal initial recovery b₀ | 2/25 |
 
 The five **per-port parameters** are fixed in time and chosen independently for each cell and
-each port, within the relative box ±ε. This box is the subject of the repository.
+each port, within the relative box ±ε, with **ε = 3e-3 (±0.3 %)** in this repository.
 
 | Parameter | Nominal value |
 |---|---|
@@ -101,7 +101,8 @@ E′ = 10(100 − E) − W. The work W is non-negative:
 - the actuation movements.
 
 The uniform bound W ≤ (3C + 3M + 1)a + 1.1 + 4.5 L_m + 2.4 L_e stays below 500 throughout the box
-(it must be rechecked for each ε). So [50, 100] is invariant, and the power gates never close.
+(checked at ε = 3e-3 by the initial-section certificate). So [50, 100] is invariant, and the
+power gates never close.
 
 ## Initial family
 

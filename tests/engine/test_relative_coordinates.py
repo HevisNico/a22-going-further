@@ -1,4 +1,4 @@
-"""Exercise T/T' on either the frozen engine or the next candidate, without modifying either."""
+"""Exercise T/T' on the frozen ±0.3 % engine without modifying it."""
 import os
 from pathlib import Path
 import sys
@@ -10,7 +10,7 @@ from scipy.optimize import brentq
 import math
 
 REPO = Path(__file__).resolve().parents[2]
-ROOT = REPO / os.environ.get('A22_TEST_ENGINE', 'engine_eps3e-3')
+ROOT = REPO / 'engine_eps3e-3'
 sys.path.insert(0, str(ROOT / 'affine'))
 os.environ.setdefault('A22_ARTIFACT_DIR', str(ROOT / 'test_diagnostics'))
 import engine

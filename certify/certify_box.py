@@ -29,7 +29,7 @@ def main():
     parser.add_argument('campaign', type=Path)
     parser.add_argument('box', type=Path)
     parser.add_argument('--engine-dir', required=True,
-                        help='repository engine directory the campaign ran with, e.g. engine_eps1e-2')
+                        help='repository engine directory the campaign ran with: engine_eps3e-3')
     parser.add_argument('--return-bound', default='19')
     args = parser.parse_args()
     campaign, box = args.campaign.resolve(), args.box.resolve()

@@ -1,4 +1,4 @@
-name: Engine tests and certified boxes
+name: Certified ±0.3 % engine and 28-pulse result
 
 on:
   push:
@@ -8,11 +8,11 @@ on:
 
 jobs:
   engine:
-    # One job per engine directory: each certified box keeps the exact engine it ran with.
+    # Keep the published engine's existing check name while limiting CI to this result.
     strategy:
       fail-fast: false
       matrix:
-        engine: [engine_eps3e-3, engine_next]
+        engine: [engine_eps3e-3]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,9 +29,7 @@ jobs:
       - name: Unit tests
         working-directory: ${{ matrix.engine }}
         run: python -B -m unittest discover -s tests
-      - name: Shared root and fork regression tests
-        env:
-          A22_TEST_ENGINE: ${{ matrix.engine }}
+      - name: Relative-coordinate regression tests
         run: python -B -m unittest discover -s tests/engine
       - name: Kernel unchanged
         working-directory: ${{ matrix.engine }}/kernel
@@ -41,7 +39,7 @@ jobs:
 
   certified-boxes:
     # Recomputes the initial section, the future certificate, its independent check and Q28 of
-    # every committed box from its committed records (certify/verify.py), standard library only.
+    # the ±0.3 % box from its committed records (certify/verify.py), standard library only.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,14 +52,5 @@ jobs:
         run: python -B -m unittest discover -s controls/tests
       - name: Documentation links and certified-engine freeze
         run: python -B -m unittest discover -s tests/repository
-      - name: Verify every committed box
-        run: |
-          set -e
-          found=0
-          for box in results/*/; do
-            if [ -f "$box/terminal/all_terminal_exact.json" ]; then
-              found=1
-              python -I certify/verify.py --box "$box"
-            fi
-          done
-          [ "$found" = 1 ] || echo "No certified box committed yet."
+      - name: Verify the published ±0.3 % / 28-pulse result
+        run: python -I certify/verify.py --box results/eps3e-3

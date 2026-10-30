@@ -27,6 +27,8 @@ jobs:
       - name: Kernel unchanged
         working-directory: engine/kernel
         run: sha256sum -c --quiet ../../kernel/KERNEL_SHA256SUMS
+      - name: Kernel test files (on a scratch copy; driver-layer files reported, not gating)
+        run: python -B tools/run_kernel_suites.py engine
 
   certified-boxes:
     # Recomputes the initial section, the future certificate, its independent check and Q28 of

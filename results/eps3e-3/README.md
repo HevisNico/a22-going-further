@@ -32,7 +32,7 @@ machine-checked as a whole, and it has not been independently reviewed.
 | Cells | 216 payloads verified; 191 active cells at exact rest at 230; 540 auxiliary ports at exact rest |
 | Network emissions during training | 2,202 |
 | Run time | ≈ 32 min of layer computation, 4 workers (layer 18: 13 min) |
-| Outputs | release asset; every file listed in `campaign/RUN_MANIFEST.json` (488 files) |
+| Outputs | release `eps3e-3-campaign`, six ZIP parts with the as-run engine ([`campaign/RELEASE_ASSETS.md`](campaign/RELEASE_ASSETS.md)); every output file is listed in `campaign/RUN_MANIFEST.json` (488 files) |
 
 ## Certificates (`terminal/`)
 
@@ -86,5 +86,8 @@ every firing date inside its certified box.
 python3 -I certify/verify.py --box results/eps3e-3                              # records
 python3 -I certify/verify.py --box results/eps3e-3 <campaign> --engine <engine>  # everything
 ```
+
+`<campaign>` and `<engine>` come from the release assets; the steps are in
+[`campaign/RELEASE_ASSETS.md`](campaign/RELEASE_ASSETS.md).
 
 With the campaign and the as-run engine: 12 PASS, 0 FAIL.

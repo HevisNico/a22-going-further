@@ -41,8 +41,11 @@ Each step runs as a separate process, standard library only, and none imports th
 | Independent future check | Directed decimals, a different implementation, including its own exponential for the gain intersection; the contract is gaps ≥ 20 and return strictly before 19 |
 | Quiescent domain Q28 | Built from the extraction and the certificate |
 
-The campaign directory is then published as a release asset, and `results/<box>/` is committed:
-`campaign/campaign.json`, `campaign/RUN_MANIFEST.json` and `terminal/*.json`.
+The campaign directory and the as-run engine, with its native binaries, are then published as
+assets of a release `<box>-campaign`. Their SHA-256 and the full verification commands go into
+`results/<box>/campaign/RELEASE_ASSETS.md`. `results/<box>/` is committed:
+`campaign/campaign.json`, `campaign/RUN_MANIFEST.json`, `campaign/RELEASE_ASSETS.md` and
+`terminal/*.json`. A box is not published until its release exists.
 
 ## 4. Verify, as anyone else would
 
@@ -54,6 +57,11 @@ python3 -I certify/verify.py --box results/<box> <campaign dir> --engine <as-run
 
 The last form also recomputes the archived `kernel_id` from the as-run engine and checks that its
 sources are the committed `engine/`.
+
+Every derived file (initial section, both future certificates, Q28) is regenerated and compared
+byte for byte with the committed one, and Q28 is rebuilt from the regenerated certificate, not from
+the committed one. The ε of `campaign.json`, of the terminal extraction, of the certificates and of
+the log must agree exactly.
 
 ## 5. Write the proof of what was used
 

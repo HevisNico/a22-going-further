@@ -38,6 +38,7 @@ it never removes a represented value.
 | 15 | Fix T: READY fire root relative to an admitted pulse | `affine/relative_root.py` | — | 1 |
 | 16 | Fix T′: recovery return relative to the latest mark | `affine/relative_return.py` | — | 1 |
 | 17 | KMAX = 1024 | `affine/affine_iv.py` | — | none (precision setting) |
+| 18 | Fix D1: decayed delay of a port's first mark | `affine/first_delay.py` | — | 1 |
 
 ## Obligations
 
@@ -113,6 +114,16 @@ it never removes a represented value.
 
 17. **KMAX.** Truncation keeps the KMAX largest coefficients and adds the rest, rounded upwards, to
     the remainder. This is sound for every KMAX. It only affects precision and running time.
+
+18. **Fix D1.** For the first pulse k = 0 of port j, the kernel uses D1, the delay box of a first
+    pulse at time 0: auxiliary charge RM + η with |η| ≤ δ, possibly attenuated by a residual ERROR
+    phase that ends before U0. If the first pulse arrives at a ≥ U0 for every trajectory
+    (lower bound of its date box), the residual phase has ended (charge exactly RM) or the READY
+    auxiliary has relaxed to RM + η e^(−K a). The raw pulse is admitted at once, and the auxiliary
+    charge after the arrival is RM + η e^(−K a) e^(−K u) + M_j h(u), exactly. The first mark
+    is its first crossing of 1, enclosed by the kernel's root routine as for D0, with
+    η e^(−K a) ∈ [−δ e^(−K a_lo), δ e^(−K a_lo)] (rounded outwards). The residual-ERROR case is
+    η = 0, inside that range. For a < U0, D1 is kept.
 
 ## Execution assumptions
 

@@ -194,7 +194,9 @@ _src = textwrap.dedent(inspect.getsource(b.unit))
 _old = "s=dict(t=v.T('initial_slab',U0),q=R+I(-DELTA.hi,DELTA.hi)*(-K*U0).exp()+I(0,(3*C*A*U0).hi),\n        z=[I(g).ln()+I(-DELTA.hi,(9*DELTA).hi) for g in ('.3','1.2','.3')],b=I('.08')+I(-DELTA.hi,DELTA.hi),"
 assert _old in _src
 _src = _src.replace(_old, "s=dict(t=v.T('initial_slab',U0),q=R+INIT['q']*(-K*U0).exp()+I(0,(3*C*A*U0).hi),\n        z=[I(g).ln()+INIT['z'][i] for i,g in enumerate(('.3','1.2','.3'))],b=I('.08')+INIT['b'],")
-_src = _src.replace('D1 if k==0 else D0','D1_PORTS[j] if k==0 else D0_PORTS[j]')
+# Fix D1 (affine/first_delay.py): the first mark of a port whose first pulse arrives after the
+# initial slab uses the decayed initial charge instead of the time-0 box D1.
+_src = _src.replace('D1 if k==0 else D0','FIRST_DELAY(j,start) if k==0 else D0_PORTS[j]')
 # Fix P (v3.3): auxiliary event durations of port j use port j's constants.
 _old_aux = "off=shift(mon,DM,f'{cell}:mo:{j}:{k}');err=shift(off,DS,f'{cell}:e:{j}:{k}');end=shift(err,DE,f'{cell}:eo:{j}:{k}')"
 assert _src.count(_old_aux) == 1
@@ -497,6 +499,8 @@ _port_box_candidate.install(sys.modules[__name__])
 # Fix P (v3.3): one symbol per physical port, used only for that port.
 import port_symbols as _port_symbols
 PORT_SYMBOLS = _port_symbols.install(sys.modules[__name__])
+import first_delay as _first_delay
+_first_delay.install(sys.modules[__name__])
 
 # Strict subthreshold time-cover fallback; no physical or parameter change.
 import nofire_cover as _nofire_cover
@@ -511,8 +515,3 @@ _charge_join.install(b)
 # so the advance wrapper sees the final effective advance and compute_cell.
 import fork as _fork
 _fork.install(b, sys.modules[__name__])
-
-# Fix S: case split of a refused cell on its ports' mark rates (affine/param_split.py).
-# Wraps the fork-aware compute_cell, so each parameter piece may still fork on histories.
-import param_split as _param_split
-_param_split.install(b, sys.modules[__name__], _port_symbols, _fork)

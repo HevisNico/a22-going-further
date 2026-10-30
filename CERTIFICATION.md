@@ -76,7 +76,7 @@ reviewed; `REVIEW.md` lists the review tasks.
 
 ## 6. Run the controls
 
-The scientific and verification controls are in `CONTROLS.md`. In particular, the point-simulation
+The verification controls are in `CONTROLS.md`. In particular, the point-simulation
 inclusion test checks that sampled devices lie inside the certified enclosures.
 
 ## What this certified result states

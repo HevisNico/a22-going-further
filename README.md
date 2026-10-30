@@ -146,7 +146,7 @@ To run a campaign yourself, see [`engine_eps3e-3/README.md`](engine_eps3e-3/READ
 | `proof/` | `going_further/`: proof plan, mechanisms and their obligations, notes. `inherited_eps1e-3/`: the base coverage theorem, its extensions and Lean 4 files |
 | `controls/` | Inclusion control and the point simulator |
 | `tools/` | Single-cell replay and diagnostics |
-| `CERTIFICATION.md`, `CONTROLS.md` | Certification procedure and verification controls; additional scientific controls clearly marked as planned |
+| `CERTIFICATION.md`, `CONTROLS.md` | Certification procedure and verification controls |
 | `REVIEW.md` | Call for review: self-contained tasks on the written arguments |
 | `HISTORY.md` | Sources of the base engine, model and proof |
 
@@ -162,8 +162,7 @@ To run a campaign yourself, see [`engine_eps3e-3/README.md`](engine_eps3e-3/READ
 - The written arguments for the mechanisms (`proof/going_further/MECHANISM_ARGUMENTS.md`) have not
   been independently reviewed. Only selected lemmas are machine-checked in Lean.
 - The result concerns this realization R, with this graph and this protocol. It is not a statement
-  about spiking networks in general. Whether learning gives an advantage over a network with preset
-  gains is a separate question: see the scientific controls in `CONTROLS.md`.
+  about spiking networks in general.
 
 ## How this was built
 

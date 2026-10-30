@@ -32,7 +32,7 @@ jobs:
       - name: Kernel unchanged
         working-directory: ${{ matrix.engine }}/kernel
         run: sha256sum -c --quiet ../../kernel/KERNEL_SHA256SUMS
-      - name: Kernel test files (on a scratch copy; pinned status for the inherited driver layer)
+      - name: Kernel test files (on a scratch copy; every file must pass)
         run: python -B tools/run_kernel_suites.py ${{ matrix.engine }}
 
   certified-boxes:

@@ -150,12 +150,13 @@ remainder; this is sound for every KMAX.
 
 ## Task 10 — Kernel test files and the inherited campaign driver
 
-**Claim.** The affine engine loads, from the kernel's `R_continuation_A22_2026-10-18/`, only
-`avance_causale_A22` and `ready_general_A22`. The 18 pinned failures of the kernel's own test files
-are all in the cache, memo and provenance layer of the inherited campaign driver, which the engine
-does not load; they do not bear on the certified computation.
+**Claim.** Every test file shipped in the kernel passes on the CI runner, and the CI requires it.
+The affine engine loads, from the kernel's `R_continuation_A22_2026-10-18/`, only
+`avance_causale_A22` and `ready_general_A22`; the cache, memo and provenance layer of the inherited
+campaign driver takes no part in the certified computation.
 
-**Where:** `tools/run_kernel_suites.py` (checked in CI), the five test files it pins.
+**Where:** `tools/run_kernel_suites.py` (run in CI on each engine directory).
 
-**Question.** Does any module exercised by a pinned failing test take part in the certified
-computation, directly or through a module it imports?
+**Question.** Five of these files (the driver's cache and provenance layer) pass on the CI runner
+but fail in some other environments. Is any module they exercise used, directly or indirectly, by
+the certified computation?

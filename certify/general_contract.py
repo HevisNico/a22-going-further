@@ -4,6 +4,7 @@ No A22 training engine, point simulator, or integer interval code is imported.
 """
 from decimal import Decimal as D, localcontext, ROUND_CEILING
 from fractions import Fraction as F
+from certificate_parameters import resolve_epsilon
 
 def graph():
     prev=[True]+[False]*11;active=set();inactive=set();inputs={}
@@ -21,7 +22,8 @@ def interval(pair):
     return a,b
 
 def validate_inputs(data,certificate,eps):
-    assert 0<F(str(eps))<1 and F(certificate['eps'])==F(str(eps)), 'epsilon binding'
+    # Every declaration (terminal campaign, certificate, its campaign, explicit argument) must agree.
+    assert resolve_epsilon(data,str(eps),certificate)==F(str(eps)), 'epsilon binding'
     active,inactive,inputs=graph()
     assert len(data['cells'])==216, 'terminal cell count'
     expected={(n,j) for n in range(1,19) for j in range(12)}

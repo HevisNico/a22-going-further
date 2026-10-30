@@ -13,8 +13,9 @@
 
 Without a campaign directory: the initial section is recomputed and compared byte for byte; the
 future certificate and its independent check are regenerated from terminal/all_terminal_exact.json
-and compared (the certificate by content, since a few margins are listed in set order); Q28 is
-rebuilt and compared. All files are those of the box directory.
+and compared byte for byte; Q28 is rebuilt from the regenerated certificate and compared byte for
+byte. Every epsilon declaration of the box must agree exactly. All files are those of the box
+directory.
 
 With a campaign directory: first every output file is checked against campaign/RUN_MANIFEST.json,
 then the terminal extraction, the lineage and clock audit, the commutation audit and the mechanism
@@ -31,6 +32,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from fractions import Fraction
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -128,15 +130,6 @@ def same_bytes(a, b):
     return Path(a).read_bytes() == Path(b).read_bytes()
 
 
-def unordered(x):
-    """Content comparison: a few certificate lists are emitted in set order."""
-    if isinstance(x, dict):
-        return {k: unordered(v) for k, v in x.items()}
-    if isinstance(x, list):
-        return sorted((unordered(v) for v in x), key=lambda v: json.dumps(v, sort_keys=True))
-    return x
-
-
 def check(name, fn):
     try:
         fn()
@@ -226,30 +219,48 @@ def engine_checks(engine, check_runtime=False):
         check('loaded engine runtime', runtime)
 
 
+def box_epsilon():
+    """The box's epsilon; every declaration in the box must state the same exact value."""
+    campaign = json.loads((BOX / 'campaign' / 'campaign.json').read_text())
+    eps = campaign['parameters']['epsilon_relative']
+    terminal = json.loads((TERMINAL / 'all_terminal_exact.json').read_text())
+    log = json.loads((TERMINAL / 'certification_log.json').read_text())
+    declared = {'campaign.json': eps,
+                'all_terminal_exact.json': terminal['campaign']['parameters']['epsilon_relative'],
+                'certification_log.json': log['campaign']['parameters']['epsilon_relative']}
+    if len({Fraction(v) for v in declared.values()}) != 1:
+        raise ValueError(f'conflicting epsilon declarations: {declared}')
+    if terminal['campaign'] != campaign or log['campaign'] != campaign:
+        raise ValueError('campaign metadata differ between campaign.json, the terminal extraction and the log')
+    return eps
+
+
 def record_checks(tmp):
     def initial():
-        eps = json.loads((BOX / 'campaign' / 'campaign.json').read_text())['parameters']['epsilon_relative']
+        eps = box_epsilon()
         run('certify_initial_section.py', tmp / 'initial.json', eps)
         report(f'initial section at eps = {eps}', same_bytes(tmp / 'initial.json', TERMINAL / 'initial_section.json'))
     check('initial section', initial)
 
     def future():
+        eps = box_epsilon()
         terminal = TERMINAL / 'all_terminal_exact.json'
-        cert, ind = tmp / 'future_certificate.json', tmp / 'independent_check.json'
-        run('certify_future.py', terminal, cert)
+        cert, ind, q = tmp / 'future_certificate.json', tmp / 'independent_check.json', tmp / 'q.json'
         log = json.loads((TERMINAL / 'certification_log.json').read_text())
-        eps = log['campaign']['parameters']['epsilon_relative']
+        run('certify_future.py', terminal, cert, eps)
         run('verify_future_general.py', terminal, cert, ind, eps, log['return_bound'])
-        c, i = json.loads(cert.read_text()), json.loads(ind.read_text())
-        rc = json.loads((TERMINAL / 'future_certificate.json').read_text())
-        ri = json.loads((TERMINAL / 'independent_check.json').read_text())
-        strip = lambda d: {k: v for k, v in d.items() if k != 'certificate_sha256'}
-        report('future certificate (directed integers)', unordered(c) == unordered(rc) and c['status'].startswith('PASS'),
+        c = json.loads(cert.read_text())
+        # Every derived file is regenerated and compared byte for byte with the recorded one; Q28 is
+        # rebuilt from the regenerated certificate, so no recorded bound is trusted.
+        report('future certificate (directed integers)',
+               same_bytes(cert, TERMINAL / 'future_certificate.json') and c['status'].startswith('PASS'),
                f"return before {c['global_quiescent_by'][:10]}, {c['active']} active cells, {c['masked_count']} masked ports")
+        i = json.loads(ind.read_text())
         report('independent future check (directed decimals)',
-               strip(i) == strip(ri) and i['status'] == 'PASS' and i['certificate_sha256'] == sha(cert))
-        run('build_q_domain.py', terminal, TERMINAL / 'future_certificate.json', tmp / 'q.json')
-        report('Q28 domain', same_bytes(tmp / 'q.json', TERMINAL / 'invariant_domain_Q28.json'))
+               same_bytes(ind, TERMINAL / 'independent_check.json') and i['status'] == 'PASS'
+               and i['certificate_sha256'] == sha(TERMINAL / 'future_certificate.json'))
+        run('build_q_domain.py', terminal, cert, q)
+        report('Q28 domain', same_bytes(q, TERMINAL / 'invariant_domain_Q28.json'))
     check('future certificates', future)
 
 

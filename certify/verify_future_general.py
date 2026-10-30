@@ -51,7 +51,7 @@ def h(x):
 
 def main():
  if not __debug__:raise RuntimeError('Run without -O')
- src,cf,out=map(Path,sys.argv[1:4]);E=D(sys.argv[4]) if len(sys.argv)>4 else D('1e-4');LOW=str(1-E);UP=str(1+E);data=json.loads(src.read_text());c=json.loads(cf.read_text())
+ src,cf,out=map(Path,sys.argv[1:4]);E=D(sys.argv[4] if len(sys.argv)>4 else json.loads(src.read_text())['campaign']['parameters']['epsilon_relative']);LOW=str(1-E);UP=str(1+E);data=json.loads(src.read_text());c=json.loads(cf.read_text())
  assert hashlib.sha256(src.read_bytes()).hexdigest()==c['terminal_input_sha256'] and c['campaign']==data['campaign']
  contract=validate_inputs(data,c,E)
  requested_bound=sys.argv[5] if len(sys.argv)>5 else '20'

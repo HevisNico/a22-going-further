@@ -11,10 +11,12 @@
   https://github.com/HevisNico/a22-interval-replay
 
 The physical model is the one specified in the first repository. `model/` here holds its two files
-unchanged, and `engine/reference/` holds another unchanged copy of the reference definition.
+unchanged, and `engine_eps3e-3/reference/` holds another unchanged copy of the reference definition.
 `proof/inherited_eps1e-3/` is that repository's `proof/` folder, copied unchanged from the same
 commit.
 
-The point-simulation studies summarized in `evidence/` were carried out separately: the
-falsification campaign at ±10 %, the prospective 29-pulse cohort, the adversarial search and the
-radial ε scans. Their full archives are not included in this repository.
+This repository now preserves only the ±0.3 % / 28-pulse result. The development engine and
+exploratory studies for other boxes were removed from the working tree; they remain available in
+the Git history preceding this scope change. The certified engine, campaign records and certificates
+are unchanged. Historical descriptions inside the frozen engine and inherited sources are retained
+verbatim for provenance; they do not extend the scope of this repository.

@@ -1,16 +1,20 @@
-# A22: a learning spiking network certified on wider parameter boxes
+# A22: a learning spiking network certified at ±0.3 % with 28 training pulses
 
 A22 is a spiking network of 216 coupled hybrid cells (18 layers × 12 lanes) that learns while it
 runs. Its cells follow a fixed physical kernel, **R**. This repository proves, for **every device**
 in a box of independent per-port parameter variations, that training brings the network into an
 explicit quiescent domain, and that afterwards it transmits the intervals between source pulses
-**exactly** through all 18 layers. The box is widened step by step: ±0.3 %, ±1 %, ±3 %, ±10 %.
+**exactly** through all 18 layers. This repository is dedicated to the published **±0.3 %**
+result, with **28 training pulses** and a terminal cut at **t = 230**.
 
 | Box | Status |
 |---|---|
 | ±0.3 % | **Certified**: 18/18 layers, both future certificates pass ([`results/eps3e-3/`](results/eps3e-3/README.md)) |
-| ±1 % | Next: same engine, same protocol |
-| ±3 %, ±10 % | Planned: 29-pulse protocol and scenario propagation (see [Beyond ±1 %](#beyond-1-)) |
+
+The training pulses occur at 0, 8, …, 216 on source lane 0. The cut at 230 is an observation
+time, not an extra training pulse. Subsequent source pulses carry the data, with gaps of at least 20.
+The frozen engine, campaign records, certificates and inherited proof sources are retained for
+reproduction and review of this result.
 
 "Certified" means a computer-assisted enclosure of every admissible trajectory, finite
 certificates rechecked by independent programs, and written arguments. They hold under the
@@ -130,38 +134,19 @@ python3 -I certify/verify.py --box results/eps3e-3 <campaign dir> --engine <engi
 
 To run a campaign yourself, see [`engine_eps3e-3/README.md`](engine_eps3e-3/README.md).
 
-## Beyond ±1 %
-
-Point simulations of the full network (numerical evidence, summarized in
-[`evidence/`](evidence/README.md)) set the plan for wider boxes.
-
-- **READY is not rest.** At ±10 %, a few devices end training with a cell READY but carrying a
-  residual charge. It decays like e^(−κt) and never vanishes, so the first future response fires
-  slightly early. Along the motifs tested, exact rest at 230 is lost beyond about 1.5 % and
-  first-interval fidelity beyond about 3.7 %. From ±3 %, the source
-  pulse at 230 is therefore used as a **29th, conditioning pulse**: it resets every active cell
-  exactly, and the data start at 250. Under this protocol, 256 prospectively specified devices and
-  192 adversarial ones all transmit exactly at ±10 %.
-- **Training histories branch.** Beyond about 1.5 %, devices fire a different number of times
-  during training: at ±10 %, 98 of 216 cells. Certification then needs **scenario propagation**:
-  separate branches per history, merged only when they rejoin, and sets of spike trains between
-  cells. The engine's history fork (mechanism 14) is a first, cell-level step.
-
 ## Repository contents
 
 | Path | What it is |
 |---|---|
 | `kernel/` | The kernel R in English, and the checksums of the executable kernel |
 | `model/` | The original model definition (French) and specification |
-| `engine_next/` | Uncertified development copy with the audit fixes; the certified engine stays frozen |
-| `engine_eps3e-3/` | The verification engine of the ±0.3 % box, frozen; `CHANGES_FROM_BASE.diff` against the base engine. Each box has its own engine directory |
+| `engine_eps3e-3/` | The verification engine of the ±0.3 % box, frozen; `CHANGES_FROM_BASE.diff` against the base engine |
 | `certify/` | Certification tools and `verify.py` |
-| `results/` | One folder per certified box: statement, campaign identity, run manifest, certificates, controls |
+| `results/eps3e-3/` | The ±0.3 % result: statement, campaign identity, run manifest, certificates, inclusion control |
 | `proof/` | `going_further/`: proof plan, mechanisms and their obligations, notes. `inherited_eps1e-3/`: the base coverage theorem, its extensions and Lean 4 files |
 | `controls/` | Inclusion control and the point simulator |
-| `evidence/` | Summary of the point-simulation studies |
 | `tools/` | Single-cell replay and diagnostics |
-| `CERTIFICATION.md`, `CONTROLS.md` | Certification procedure; planned verification and scientific controls |
+| `CERTIFICATION.md`, `CONTROLS.md` | Certification procedure and verification controls; additional scientific controls clearly marked as planned |
 | `REVIEW.md` | Call for review: self-contained tasks on the written arguments |
 | `HISTORY.md` | Sources of the base engine, model and proof |
 

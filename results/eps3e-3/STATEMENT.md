@@ -12,8 +12,8 @@ afterwards:
 - The engine's source identity, which also enters the `kernel_id`. `certify/verify.py --engine`
   recomputes it from the as-run engine and checks that its sources are `engine_eps3e-3/`.
 
-Nothing below differs from those records. From ±1 % on, this file is committed before the
-campaign is launched.
+Nothing below differs from those records. This repository preserves this published campaign
+and its statement; it makes no claim that this separate statement file predates the run.
 
 ## Box
 

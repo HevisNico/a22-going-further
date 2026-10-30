@@ -1,34 +1,35 @@
-# How a box is certified
+# Certification of the ±0.3 % / 28-pulse result
 
-The procedure is the one of the ±0.1 % / 28-pulse result, applied box by box. A box counts as
-certified only when every step below passes, and the result is published as its own folder
-`results/<box>/`. Boxes in scope now: **ε = 3e-3 and ε = 1e-2**, 28 training pulses, terminal cut 230.
+This repository preserves one result: **ε = 3e-3 (±0.3 %)**, with 28 source pulses at
+0, 8, …, 216 and a terminal cut at 230. The cut is not a training pulse. The procedure is inherited
+from the ±0.1 % / 28-pulse result. The published records are in `results/eps3e-3/`.
 
 ## 1. Freeze the statement
 
-Before the campaign, record in `results/<box>/STATEMENT.md`:
+The protocol calls for recording the statement before a campaign. For the published run,
+`results/eps3e-3/STATEMENT.md` was written afterwards, as that file explicitly records;
+the launch metadata and engine identity fixed the statement at launch. Its fields are:
 - ε and the initial family (δ = 1e-5);
 - the calendar;
 - the engine commit;
 - the future contract (source gaps ≥ 20, global return strictly before 19).
 
-Nothing in the statement changes during the campaign.
+Nothing in the statement changes during the campaign. Reproductions must record it before launch.
 
 ## 2. Run the campaign
 
-Each box has its own engine directory, `engine_<box>/` (the ±0.3 % box: `engine_eps3e-3/`). Once a
-box is certified, its engine directory is frozen; changes for a wider box go into a new directory.
-Use the box's committed engine directory, from a clean build, in a new output directory (see its
-`README.md`). The
-campaign must reach 18/18 layers with no manual intervention. If it refuses, the box is not
-certified: the engine is changed, a new mechanism is documented in
-`proof/going_further/MECHANISMS.md`, and the campaign is rerun from layer 1.
+The published engine is frozen in `engine_eps3e-3/`. To reproduce its campaign, build it cleanly
+and use a new output directory (see `engine_eps3e-3/README.md`), explicitly selecting `--epsilon 3e-3`.
+The campaign must reach 18/18 layers with no manual intervention. A refusal is a failed
+reproduction and must be retained with its inputs and reason.
 
 ## 3. Certify the records
 
 ```sh
-python3 -I certify/certify_box.py <campaign dir> results/<box> --engine-dir engine_<box>
+python3 -I certify/certify_box.py <campaign dir> <new records dir> --engine-dir engine_eps3e-3
 ```
+
+Use a new records directory for a reproduction; preserve `results/eps3e-3/` as published.
 
 Each step runs as a separate process, standard library only, and none imports the engine.
 
@@ -44,40 +45,41 @@ Each step runs as a separate process, standard library only, and none imports th
 | Independent future check | Directed decimals, a different implementation, including its own exponential for the gain intersection; the contract is gaps ≥ 20 and return strictly before 19 |
 | Quiescent domain Q28 | Built from the extraction and the certificate |
 
-The campaign directory and the as-run engine, with its native binaries, are then published as
-assets of a release `<box>-campaign`. Their SHA-256 and the full verification commands go into
-`results/<box>/campaign/RELEASE_ASSETS.md`. `results/<box>/` is committed:
+The campaign directory and the as-run engine, with its native binaries, are published as
+assets of the release `eps3e-3-campaign`. Their SHA-256 and the full verification commands are in
+`results/eps3e-3/campaign/RELEASE_ASSETS.md`. The committed records include:
 `campaign/campaign.json`, `campaign/RUN_MANIFEST.json`, `campaign/ENGINE`, `campaign/RELEASE_ASSETS.md` and
-`terminal/*.json`. A box is not published until its release exists.
+`terminal/*.json`.
 
 ## 4. Verify, as anyone else would
 
 ```sh
-python3 -I certify/verify.py --box results/<box>                       # committed records only
-python3 -I certify/verify.py --box results/<box> <campaign dir>        # plus every output file
-python3 -I certify/verify.py --box results/<box> <campaign dir> --engine <as-run engine dir>
+python3 -I certify/verify.py --box results/eps3e-3                       # committed records only
+python3 -I certify/verify.py --box results/eps3e-3 <campaign dir>        # plus every output file
+python3 -I certify/verify.py --box results/eps3e-3 <campaign dir> --engine <as-run engine dir>
 ```
 
 The last form also recomputes the archived `kernel_id` from the as-run engine and checks that its
-sources are the box's committed engine directory, named in `results/<box>/campaign/ENGINE`.
+sources are the box's committed engine directory, named in `results/eps3e-3/campaign/ENGINE`.
 
 Every derived file (initial section, both future certificates, Q28) is regenerated and compared
 byte for byte with the committed one, and Q28 is rebuilt from the regenerated certificate, not from
 the committed one. The ε of `campaign.json`, of the terminal extraction, of the certificates and of
 the log must agree exactly. Every certificate hash cited by the certification log must be the committed certificate's.
 
-## 5. Write the proof of what was used
+## 5. Review the proof of what was used
 
 For every mechanism the census shows as used, its obligation in `MECHANISMS.md` must have a written
 argument. These arguments, together with the inherited coverage theorem, the general-ε extensions
-and the future-invariance proof, make up the proof for the box.
+and the future-invariance proof, make up the proof for the box. They have not yet been independently
+reviewed; `REVIEW.md` lists the review tasks.
 
 ## 6. Run the controls
 
 The scientific and verification controls are in `CONTROLS.md`. In particular, the point-simulation
 inclusion test checks that sampled devices lie inside the certified enclosures.
 
-## What a certified box states
+## What this certified result states
 
 For every device in the box and every admissible initial state:
 - at t = 230 the network is in Q28(ε);

@@ -26,6 +26,34 @@ from audit_provenance import DAG  # noqa: E402
 KINDS = ['independent_uniform', 'independent_corner', 'homogeneous_corner', 'layer_corner',
          'lane_corner', 'port_role_corner', 'bottleneck']
 
+def positive_count(value):
+    count = int(value)
+    if count <= 0:
+        raise argparse.ArgumentTypeError('must be a positive integer')
+    return count
+
+
+def compare_records(records, boxes, terminal_time):
+    """Check the full half-open training interval, including its final half unit."""
+    terminal_time = F(terminal_time)
+    expected = set(boxes)
+    keys = [(rec['layer'], rec['lane']) for rec in records]
+    if len(keys) != len(set(keys)) or set(keys) != expected:
+        raise ValueError('simulated cells must match every certified cell exactly once')
+    bad = []
+    for rec in records:
+        key = rec['layer'], rec['lane']
+        fired = [t for t in rec['result']['outputs'] if F(t) < terminal_time]
+        cert = boxes[key]
+        if len(fired) != len(cert):
+            bad.append(dict(cell=key, reason='count', simulated=len(fired), certified=len(cert)))
+            continue
+        for n, (t, (lo, hi)) in enumerate(zip(fired, cert)):
+            if not lo <= F(t) <= hi:
+                bad.append(dict(cell=key, reason='date', emission=n, simulated=t,
+                                box=[float(lo), float(hi)]))
+    return bad
+
 
 def certified_boxes(campaign):
     boxes = {}
@@ -48,13 +76,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('campaign', type=Path)
     parser.add_argument('output', type=Path)
-    parser.add_argument('--per-kind', type=int, default=4)
+    parser.add_argument('--per-kind', type=positive_count, default=4)
     parser.add_argument('--seed', type=int, default=7)
     args = parser.parse_args()
     import numpy as np
     import campaign as sim
     cfg = json.loads((args.campaign / 'campaign.json').read_text())
     eps = float(cfg['parameters']['epsilon_relative'])
+    terminal_time = F(cfg['parameters']['training_calendar']['terminal_time'])
     boxes = certified_boxes(args.campaign)
     results, failures = [], []
     for k, kind in enumerate(KINDS):
@@ -69,17 +98,7 @@ def main():
                     factor = np.array(dev.params) / nominal
                     dev.params = (nominal * (1 + (eps / 0.1) * (factor - 1))).tolist()
             run = sim.run_network(case, devices, checkpoints=False)
-            bad = []
-            for rec in run['records']:
-                key = rec['layer'], rec['lane']
-                fired = [t for t in rec['result']['outputs'] if t < 229.5]
-                cert = boxes[key]
-                if len(fired) != len(cert):
-                    bad.append(dict(cell=key, reason='count', simulated=len(fired), certified=len(cert)))
-                    continue
-                for n, (t, (lo, hi)) in enumerate(zip(fired, cert)):
-                    if not lo <= F(t) <= hi:
-                        bad.append(dict(cell=key, reason='date', emission=n, simulated=t, box=[float(lo), float(hi)]))
+            bad = compare_records(run['records'], boxes, terminal_time)
             results.append(dict(case=case['name'], cells_outside=len(bad)))
             failures.extend(dict(case=case['name'], **b) for b in bad)
             print(case['name'], 'OK' if not bad else f'{len(bad)} cells outside', flush=True)

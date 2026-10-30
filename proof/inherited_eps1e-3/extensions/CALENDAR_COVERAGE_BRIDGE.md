@@ -1,10 +1,10 @@
 # Manual coverage bridge: 28 source pulses and terminal time 230
 
-> **Paths in this repository.** This document is copied unchanged from the delivery of the campaign.
+> **Paths in this repository.** The argument below is inherited from the campaign delivery; this path note is maintained for the repository layout.
 > `review/` there holds the proof documents, here in [`../base/`](../base/) and [`./`](./);
 > `upstream/` there holds the original C7 package, here `sweep/v33_c7/A22_fresh_launch_v3_3_C7.zip` of
 > [a22-interval-replay](https://github.com/HevisNico/a22-interval-replay) (Git blob `9f44aa48…`);
-> `calendar28_T230.patch` is [`calendar28_T230.patch`](calendar28_T230.patch) here; `engine/` is [`../../engine/`](../../engine/).
+> `calendar28_T230.patch` is [`calendar28_T230.patch`](calendar28_T230.patch) here; `engine/` is now [`../../../engine_eps3e-3/`](../../../engine_eps3e-3/).
 > The campaign of this repository was run with the same engine plus the outward rounding of lemma E
 > ([`lemma_e_outward_rounding/`](lemma_e_outward_rounding/README.md)).
 

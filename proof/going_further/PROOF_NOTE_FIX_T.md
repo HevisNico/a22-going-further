@@ -53,5 +53,6 @@ absorbed the whole arrival uncertainty through the division by a plain slope enc
 - One call site: the READY-with-memory fire root in `advance`. The scalar `ready_root` path without
   memory, lemma E and E2 are unchanged.
 - No event order, branch, history, horizon or budget is changed or enlarged.
-- No regression test specific to Fix T has been added yet. The existing tests pass, and the
-  targeted replays are listed in the README.
+- Shared regression tests are in `tests/engine/test_relative_coordinates.py`. They exercise the
+  frozen engine and `engine_next` separately: independent point/closed-form roots, invariance under
+  a common clock translation, and fallback on an undecidable or wider relative enclosure.

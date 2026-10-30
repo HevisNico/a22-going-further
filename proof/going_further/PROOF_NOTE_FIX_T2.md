@@ -55,5 +55,6 @@ enters only through the small dose accumulated at the base rate before the marks
 - One function: `return_with_marks`. It is used by the local-cycle resolver (coarse window and
   every branch return) and by the recovery paths that call it.
 - No event order, branch, history, horizon or budget is changed or enlarged.
-- No regression test specific to Fix T′ has been added yet. The existing tests pass, and the
-  targeted replays are in `validation/layer18_fixT2/`.
+- Shared regression tests are in `tests/engine/test_relative_coordinates.py`. They exercise the
+  frozen engine and `engine_next` separately: independent point/closed-form roots, invariance under
+  a common clock translation, and fallback on an undecidable or wider relative enclosure.

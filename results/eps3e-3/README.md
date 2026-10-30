@@ -15,7 +15,7 @@ For every device and every admissible initial state:
 2. **Afterwards, forever.** From Q28, for every source sequence with gaps of at least 20:
    - each of the 191 active cells fires exactly once per pulse;
    - the 25 other cells stay silent;
-   - the network is back at rest within 12.7914 time units, and back in Q28 before the next pulse.
+   - the network is back at rest within 12.79144 time units, and back in Q28 before the next pulse.
 3. **Exact transmission.** Each active cell answers with a latency that is fixed for its device and
    learned state. Intervals between source pulses are therefore transmitted exactly through the
    18 layers.
@@ -92,4 +92,4 @@ python3 -I certify/verify.py --box results/eps3e-3 <campaign> --engine <engine> 
 `<campaign>` and `<engine>` come from the release assets; the steps are in
 [`campaign/RELEASE_ASSETS.md`](campaign/RELEASE_ASSETS.md).
 
-With the campaign and the as-run engine: 12 PASS, 0 FAIL.
+With the campaign and the as-run engine: 13 PASS, 0 FAIL.

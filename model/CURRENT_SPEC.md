@@ -1,4 +1,4 @@
-# Current specification — 28 pulses, ε = 1e-3, T = 230
+# Current specification — 28 pulses, ε = 3e-3, T = 230
 
 This document states the family and protocol used by this repository. The hybrid
 equations and weak-order event semantics are those of the archived
@@ -20,7 +20,7 @@ by at least 20. They have the same canonical shape and use source lane 0.
 ## Parameter family
 
 For each cell and input port independently, choose the following five parameters
-within the relative factor `[0.999, 1.001]` of their nominal values. Each chosen
+within the relative factor `[0.997, 1.003]` of their nominal values. Each chosen
 parameter stays fixed throughout training and future operation.
 
 | Parameter | Nominal value |
@@ -65,17 +65,17 @@ ERROR phase instead of imposing a physical reset.
 | Archived statement | Current specialization or status |
 |---|---|
 | 128 pulses at 8k, terminal time 1116 | 28 pulses at 8k, terminal time 230 |
-| Relative parameter half-width 1e-4 | 1e-3 on the five per-port parameters above |
+| Relative parameter half-width 1e-4 | 3e-3 on the five per-port parameters above |
 | Initial perturbation 1e-5 | Same radius on the specified coordinates and same allowed modes |
 | Historical status dated 18 October 2026; campaign paused | Status of the archived dossier at that date, not the current campaign execution record |
 | Earlier open training-entry obligations | Addressed by the later manual coverage argument and extensions; not a formal verification of the program |
 
 The substitutions are justified by the
-[general-epsilon coverage extension](../proof/extensions/COVERAGE_THEOREM_GENERAL_EPS_EN.txt),
-[C7/C6/P extension](../proof/extensions/LEMMAS_C7_C6_EN.txt),
-[lemma-E outward-rounding correction](../proof/extensions/lemma_e_outward_rounding/README.md),
-[calendar bridge](../proof/extensions/CALENDAR_COVERAGE_BRIDGE.md), and
-[general-epsilon future extension](../proof/extensions/FUTURE_INVARIANCE_GENERAL_EPS_EN.txt).
+[general-epsilon coverage extension](../proof/inherited_eps1e-3/extensions/COVERAGE_THEOREM_GENERAL_EPS_EN.txt),
+[C7/C6/P extension](../proof/inherited_eps1e-3/extensions/LEMMAS_C7_C6_EN.txt),
+[lemma-E outward-rounding correction](../proof/inherited_eps1e-3/extensions/lemma_e_outward_rounding/README.md),
+[calendar bridge](../proof/inherited_eps1e-3/extensions/CALENDAR_COVERAGE_BRIDGE.md), and
+[general-epsilon future extension](../proof/inherited_eps1e-3/extensions/FUTURE_INVARIANCE_GENERAL_EPS_EN.txt).
 The [proof index](../proof/README.md) gives the complete reading order.
 
 The archived model and its copy in `engine_eps3e-3/reference/` are retained byte for byte.
@@ -86,16 +86,16 @@ In particular, the engine copy participates in the recorded program identity.
 Under execution assumptions A1–A4 and the manual coverage argument, every admissible
 training trajectory enters Q28 at 230. From Q28, each of the 191 active cells fires
 once per future source pulse, the 25 silent cells remain silent, and the network
-returns to Q28 before 12.791 time units after each source pulse. Fixed influential
+returns to Q28 before 12.79144 time units after each source pulse. Fixed influential
 gains and exact resting head charges imply a fixed latency for each active cell
 in a fixed device and learned state, hence exact preservation of source intervals.
 
 | Check | What it establishes |
 |---|---|
-| `python3 -I tools/verify.py` | Recomputes the initial and future certificates and Q28 from committed terminal records; normally 4 PASS |
-| Same command with a full campaign directory | Also checks 488 output files and reproduces terminal extraction, lineage/clocks and commutation diagnostics; normally 9 PASS |
-| Same command with the campaign and `--engine` as-run directory | Adds static engine-source/binary identity and archived kernel_id checks using the recorded environment; normally 11 PASS, without importing the engine |
-| Same command with `--engine` and `--check-runtime` | Also loads the engine and checks the actual interpreter, dependency versions and native binaries against the recorded environment; normally 12 PASS with the matching runtime |
+| `python3 -I certify/verify.py --box results/eps3e-3` | Recomputes the initial and future certificates and Q28 from committed terminal records; normally 5 PASS |
+| Same command with a full campaign directory | Also checks 488 output files and reproduces terminal extraction, lineage/clocks and commutation diagnostics; normally 11 PASS |
+| Same command with the campaign and `--engine` as-run directory | Adds static engine-source/binary identity and archived kernel_id checks using the recorded environment; normally 13 PASS, without importing the engine |
+| Same command with `--engine` and `--check-runtime` | Also loads the engine and checks the actual interpreter, dependency versions and native binaries against the recorded environment; normally 14 PASS with the matching runtime |
 | Fresh `engine_eps3e-3/run.py` campaign | Re-executes the training enclosure algorithm with the local build |
 | Lean files | Check selected mathematical lemmas under explicit hypotheses |
 

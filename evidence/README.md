@@ -7,6 +7,21 @@ studies can refute a claim. They cannot establish a claim for the whole box.
 `numerical_summary.json` is produced from the follow-up study's result archive by
 `../tools/summarize_numerical_evidence.py`. It reads recorded outputs only.
 
+## Reproducibility boundary
+
+Only the summary of the follow-up studies is published here. The 256-device prospective plan,
+192-proposal adaptive search records, post-hoc proposals, epsilon-scan records and their complete
+result archives are not included in this repository or its current release. Their reported
+numbers below cannot yet be independently reconstructed from the published material. In
+particular, the prospective designation is a report of the study, not a predeclaration whose
+chronology this repository authenticates. These exploratory reports do not enter the ±0.3 %
+certificate or its 56-device inclusion control.
+
+To make those studies reproducible, a future release must include the exact generating and
+search scripts, plans/seeds and chronology, all successes/refusals/errors, ODE confirmations,
+source/dependency identities, archive checksums, and commands reproducing `numerical_summary.json`.
+No missing records have been reconstructed or inferred from the summary.
+
 ## Main findings
 
 **1. The 28-pulse claim fails at ±10 %.** In 224 predeclared devices, the 191-cell active mask and

@@ -64,7 +64,7 @@ sources are the box's committed engine directory, named in `results/<box>/campai
 Every derived file (initial section, both future certificates, Q28) is regenerated and compared
 byte for byte with the committed one, and Q28 is rebuilt from the regenerated certificate, not from
 the committed one. The ε of `campaign.json`, of the terminal extraction, of the certificates and of
-the log must agree exactly.
+the log must agree exactly. Every certificate hash cited by the certification log must be the committed certificate's.
 
 ## 5. Write the proof of what was used
 

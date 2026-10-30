@@ -1,8 +1,9 @@
 # Proof plan for wider boxes
 
-**Status:** the three rules are stated here and every engine mechanism is reduced to one of them in
-[`MECHANISMS.md`](MECHANISMS.md). The ±0.3 % box is certified (`../../results/eps3e-3/`). The written
-arguments for the mechanisms it used are being completed.
+**Status:** the three rules are stated here, every engine mechanism is reduced to one of them in
+[`MECHANISMS.md`](MECHANISMS.md), and the written argument of every mechanism of the ±0.3 % engine
+is in [`MECHANISM_ARGUMENTS.md`](MECHANISM_ARGUMENTS.md). The ±0.3 % box is certified
+(`../../results/eps3e-3/`). These arguments have not been independently reviewed.
 
 ## 1. The statement, for each ε
 
@@ -93,8 +94,8 @@ The new code adds no other trusted component.
 
 ## 6. Order of work
 
-1. ±0.3 %: **done** (`../../results/eps3e-3/`). Remaining: the written arguments for the
-   mechanisms its census lists.
+1. ±0.3 %: **done** (`../../results/eps3e-3/`), with the written arguments of its mechanisms.
+   Remaining: independent review.
 2. ±1 %: same engine, same 28-pulse protocol; certify with `certify/certify_box.py`.
 3. The 29-pulse protocol (cut at 250) and its calendar bridge, as for 28 pulses.
 4. Scenario propagation between cells, then ±3 % and ±10 %.

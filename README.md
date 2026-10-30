@@ -99,7 +99,10 @@ at 0, 8, …, 216:
    - monotone comparison and hull.
 
    The 17 mechanisms beyond the base engine, with their obligations, are listed in
-   [`proof/going_further/MECHANISMS.md`](proof/going_further/MECHANISMS.md). The base coverage
+   [`proof/going_further/MECHANISMS.md`](proof/going_further/MECHANISMS.md), and the written
+   argument of each one is in
+   [`proof/going_further/MECHANISM_ARGUMENTS.md`](proof/going_further/MECHANISM_ARGUMENTS.md). The
+   census of a campaign shows which mechanisms it used; the arguments show why they are correct. The base coverage
    theorem and its extensions are in [`proof/inherited_eps1e-3/`](proof/README.md).
 3. **Finite certificates.** `certify/` extracts the exact terminal state and audits lineage, clocks
    and every recorded mechanism. It then certifies the initial section and the future regime twice:
@@ -170,8 +173,8 @@ Point simulations of the full network (numerical evidence, summarized in
   - correct arithmetic runtime and native binaries;
   - fail-closed assertions;
   - namespace discipline.
-- The written arguments for the mechanisms have not been independently reviewed. Only selected
-  lemmas are machine-checked in Lean.
+- The written arguments for the mechanisms (`proof/going_further/MECHANISM_ARGUMENTS.md`) have not
+  been independently reviewed. Only selected lemmas are machine-checked in Lean.
 - The result concerns this realization R, with this graph and this protocol. It is not a statement
   about spiking networks in general. Whether learning gives an advantage over a network with preset
   gains is a separate question: see the scientific controls in `CONTROLS.md`.

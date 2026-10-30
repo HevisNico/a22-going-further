@@ -44,6 +44,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Tests of the certification tools
+        run: python -B -m unittest discover -s certify/tests
       - name: Verify every committed box
         run: |
           set -e

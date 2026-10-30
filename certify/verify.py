@@ -32,6 +32,7 @@ import json
 import os
 import subprocess
 import sys
+import re
 import tempfile
 from fractions import Fraction
 from pathlib import Path
@@ -246,6 +247,14 @@ def box_epsilon():
     return eps
 
 
+def log_consistency():
+    """Every certificate hash cited by the certification log must be the committed certificate's."""
+    cited = set(re.findall(r'certificate_sha256\W+([0-9a-f]{64})', (TERMINAL / 'certification_log.json').read_text()))
+    actual = sha(TERMINAL / 'future_certificate.json')
+    report('certification log cites the committed certificate', bool(cited) and cited == {actual},
+           f'cited {sorted(c[:8] for c in cited)}, committed {actual[:8]}')
+
+
 def record_checks(tmp):
     def initial():
         eps = box_epsilon()
@@ -273,6 +282,7 @@ def record_checks(tmp):
         run('build_q_domain.py', terminal, cert, q)
         report('Q28 domain', same_bytes(q, TERMINAL / 'invariant_domain_Q28.json'))
     check('future certificates', future)
+    check('certification log cites the committed certificate', log_consistency)
 
 
 def main():

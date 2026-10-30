@@ -52,6 +52,8 @@ is computed with directed rounding, independently by each checker.
 
 ## Mechanisms used by this campaign (`terminal/mechanism_usage.json`)
 
+Each mechanism's argument is in `proof/going_further/MECHANISM_ARGUMENTS.md`.
+
 | Recorded guard | Uses | Obligation in `proof/going_further/MECHANISMS.md` |
 |---|---|---|
 | `charge_join_envelope` | 2,762 | 10 |

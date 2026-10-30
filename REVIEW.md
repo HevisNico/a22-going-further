@@ -13,7 +13,9 @@ piece that can be checked without knowing the rest.
 
 Partial reviews are welcome. Tasks are listed **most important first**.
 
-Background: the [README](README.md), the three generic rules in
+Background: the [README](README.md), the written arguments in
+[`proof/going_further/MECHANISM_ARGUMENTS.md`](proof/going_further/MECHANISM_ARGUMENTS.md) (each task
+below asks whether one of them holds), the three generic rules in
 [`proof/going_further/PROOF_PLAN.md`](proof/going_further/PROOF_PLAN.md), and the mechanisms with
 their obligations in [`proof/going_further/MECHANISMS.md`](proof/going_further/MECHANISMS.md)
 ("item n" below). *Affine form* means *c + Σ dₖ εₖ + [−e, e]*, valid for every ε in [−1, 1]^N. The
@@ -33,6 +35,8 @@ their own review guide; reviewing them is just as useful.
 [min_i q_i, max_i q_i], so the joined charge may be the intersection of the two. All actuation and
 deposit histories are retained.
 
+**Argument:** [`proof/going_further/MECHANISM_ARGUMENTS.md`](proof/going_further/MECHANISM_ARGUMENTS.md), Section 2.
+
 **Where:** `affine/charge_join.py`; the joins it wraps (`join_states` in
 `kernel/R_cycle_local_A20_2026-10-18/validation_A15.py`, `affine/recovery_group.py`).
 
@@ -46,6 +50,8 @@ deposit histories are retained.
 **Claim.** "No fire on [start, tt]" is accepted only if the charge, enclosed by the intersection of
 its affine and scalar evaluations, is strictly below 1 on the whole normalized segment. The
 propagated memory keeps its affine forms; the intersection is used for the guard only.
+
+**Argument:** [`proof/going_further/MECHANISM_ARGUMENTS.md`](proof/going_further/MECHANISM_ARGUMENTS.md), Section 3.
 
 **Where:** `affine/cluster_memory_cover.py` (`charge_bound`), its callers recorded as
 `READY_event_relative_no_fire`.
@@ -90,6 +96,8 @@ is enclosed by the slope-free cover (`proof/inherited_eps1e-3/lean/FirstCrossing
 event order and fire position is then enumerated, and a position is pruned only if it is
 impossible for every parameter point.
 
+**Argument:** [`proof/going_further/MECHANISM_ARGUMENTS.md`](proof/going_further/MECHANISM_ARGUMENTS.md), Section 4.
+
 **Where:** `affine/commutation.py` (`_arrival_fire_root`, `_strict_prefix`, `_resolve`), recorded
 as `fire_arrival_commutation` route E2 and `E2_subthreshold_prefix`.
 
@@ -107,6 +115,8 @@ as `fire_arrival_commutation` route E2 and `E2_subthreshold_prefix`.
   memory, and the slope-free cover in normalized coordinates enclose the first crossing.
 - *No-fire recovery group (3 uses).* The base resolver is applied only to groups of raw cuts and
   ERROR boundaries, which cannot change the actuation ledger.
+
+**Argument:** [`proof/going_further/MECHANISM_ARGUMENTS.md`](proof/going_further/MECHANISM_ARGUMENTS.md), Sections 5, 6 and 7.
 
 **Where:** `affine/commutation.py`, `affine/charge_join.py`, `affine/nofire_cover.py`
 (`first_fire`), `affine/recovery_group.py` (`no_fire_group`).
@@ -144,6 +154,8 @@ file used by a check not covered by a hash?
 **Claim.** Each port's constants get their own affine symbols, used only for that port. Truncation
 to KMAX = 1024 symbols keeps the largest coefficients and adds the rest, rounded upwards, to the
 remainder; this is sound for every KMAX.
+
+**Argument:** [`proof/going_further/MECHANISM_ARGUMENTS.md`](proof/going_further/MECHANISM_ARGUMENTS.md), Section 12.
 
 **Where:** `affine/port_symbols.py`, `affine/affine_iv.py`, `affine/rounding.py`,
 `affine/rounding_native.c`.

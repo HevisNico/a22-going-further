@@ -76,8 +76,8 @@ No history fork (14) was needed.
 
 ## Controls
 
-`controls/inclusion.json`: point-simulated devices are drawn with the motifs of the falsification
-studies, scaled to ±0.3 %. Every one fires the same number of times as the certified cells, with
+`controls/inclusion.json`: 56 point-simulated devices (8 per motif, seed 11) are drawn with the
+motifs of the falsification studies, scaled to ±0.3 %. Every one fires the same number of times as the certified cells, with
 every firing date inside its certified box.
 
 ## Verify

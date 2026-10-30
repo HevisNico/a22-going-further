@@ -26,8 +26,8 @@
   "schema": "A22-affine-research-campaign-1",
   "scientific_status": "experimental_not_qualified"
  },
- "devices": 14,
- "devices_inside": 14,
+ "devices": 56,
+ "devices_inside": 56,
  "results": [
   {
    "case": "independent_uniform_000",
@@ -35,6 +35,30 @@
   },
   {
    "case": "independent_uniform_001",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_uniform_002",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_uniform_003",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_uniform_004",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_uniform_005",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_uniform_006",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_uniform_007",
    "cells_outside": 0
   },
   {
@@ -46,11 +70,59 @@
    "cells_outside": 0
   },
   {
+   "case": "independent_corner_002",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_corner_003",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_corner_004",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_corner_005",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_corner_006",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_corner_007",
+   "cells_outside": 0
+  },
+  {
    "case": "homogeneous_corner_000",
    "cells_outside": 0
   },
   {
    "case": "homogeneous_corner_001",
+   "cells_outside": 0
+  },
+  {
+   "case": "homogeneous_corner_002",
+   "cells_outside": 0
+  },
+  {
+   "case": "homogeneous_corner_003",
+   "cells_outside": 0
+  },
+  {
+   "case": "homogeneous_corner_004",
+   "cells_outside": 0
+  },
+  {
+   "case": "homogeneous_corner_005",
+   "cells_outside": 0
+  },
+  {
+   "case": "homogeneous_corner_006",
+   "cells_outside": 0
+  },
+  {
+   "case": "homogeneous_corner_007",
    "cells_outside": 0
   },
   {
@@ -62,11 +134,59 @@
    "cells_outside": 0
   },
   {
+   "case": "layer_corner_002",
+   "cells_outside": 0
+  },
+  {
+   "case": "layer_corner_003",
+   "cells_outside": 0
+  },
+  {
+   "case": "layer_corner_004",
+   "cells_outside": 0
+  },
+  {
+   "case": "layer_corner_005",
+   "cells_outside": 0
+  },
+  {
+   "case": "layer_corner_006",
+   "cells_outside": 0
+  },
+  {
+   "case": "layer_corner_007",
+   "cells_outside": 0
+  },
+  {
    "case": "lane_corner_000",
    "cells_outside": 0
   },
   {
    "case": "lane_corner_001",
+   "cells_outside": 0
+  },
+  {
+   "case": "lane_corner_002",
+   "cells_outside": 0
+  },
+  {
+   "case": "lane_corner_003",
+   "cells_outside": 0
+  },
+  {
+   "case": "lane_corner_004",
+   "cells_outside": 0
+  },
+  {
+   "case": "lane_corner_005",
+   "cells_outside": 0
+  },
+  {
+   "case": "lane_corner_006",
+   "cells_outside": 0
+  },
+  {
+   "case": "lane_corner_007",
    "cells_outside": 0
   },
   {
@@ -78,11 +198,59 @@
    "cells_outside": 0
   },
   {
+   "case": "port_role_corner_002",
+   "cells_outside": 0
+  },
+  {
+   "case": "port_role_corner_003",
+   "cells_outside": 0
+  },
+  {
+   "case": "port_role_corner_004",
+   "cells_outside": 0
+  },
+  {
+   "case": "port_role_corner_005",
+   "cells_outside": 0
+  },
+  {
+   "case": "port_role_corner_006",
+   "cells_outside": 0
+  },
+  {
+   "case": "port_role_corner_007",
+   "cells_outside": 0
+  },
+  {
    "case": "bottleneck_000",
    "cells_outside": 0
   },
   {
    "case": "bottleneck_001",
+   "cells_outside": 0
+  },
+  {
+   "case": "bottleneck_002",
+   "cells_outside": 0
+  },
+  {
+   "case": "bottleneck_003",
+   "cells_outside": 0
+  },
+  {
+   "case": "bottleneck_004",
+   "cells_outside": 0
+  },
+  {
+   "case": "bottleneck_005",
+   "cells_outside": 0
+  },
+  {
+   "case": "bottleneck_006",
+   "cells_outside": 0
+  },
+  {
+   "case": "bottleneck_007",
    "cells_outside": 0
   }
  ],

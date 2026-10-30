@@ -161,7 +161,7 @@ Point simulations of the full network (numerical evidence, summarized in
 | `controls/` | Inclusion control and the point simulator |
 | `evidence/` | Summary of the point-simulation studies |
 | `tools/` | Single-cell replay and diagnostics |
-| `CERTIFICATION.md`, `CONTROLS.md` | Certification procedure; planned verification and scientific controls |
+| `CERTIFICATION.md`, `CONTROLS.md` | Certification procedure; planned verification controls |
 | `REVIEW.md` | Call for review: self-contained tasks on the written arguments |
 | `HISTORY.md` | Sources of the base engine, model and proof |
 
@@ -177,8 +177,7 @@ Point simulations of the full network (numerical evidence, summarized in
 - The written arguments for the mechanisms (`proof/going_further/MECHANISM_ARGUMENTS.md`) have not
   been independently reviewed. Only selected lemmas are machine-checked in Lean.
 - The result concerns this realization R, with this graph and this protocol. It is not a statement
-  about spiking networks in general. Whether learning gives an advantage over a network with preset
-  gains is a separate question: see the scientific controls in `CONTROLS.md`.
+  about spiking networks in general.
 
 ## How this was built
 

@@ -74,7 +74,7 @@ and the future-invariance proof, make up the proof for the box.
 
 ## 6. Run the controls
 
-The scientific and verification controls are in `CONTROLS.md`. In particular, the point-simulation
+The verification controls are in `CONTROLS.md`. In particular, the point-simulation
 inclusion test checks that sampled devices lie inside the certified enclosures.
 
 ## What a certified box states

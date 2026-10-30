@@ -56,7 +56,26 @@ def _check_pulse_slope(b):
     assert (2 * (b.A / b.K).ln() / (b.A - b.K)).lo > 1
 
 
-def _fire_root(b, s, H, cell, count):
+def _crossing_witness(f, horizon, depth=4):
+    """Find an outward-certified above-threshold date, not a sampled device.
+
+    A transient pulse may already have decayed at the end of the horizon.
+    Every candidate evaluates the WHOLE parameter set; the finite grid only
+    proposes dates. Failure to find a witness never asserts no crossing.
+    """
+    if horizon <= 0:
+        return None
+    if f(I(horizon)).lo >= 0:
+        return horizon
+    for level in range(1, depth + 1):
+        for k in range(1, 2**level, 2):
+            at = iv.NEAR.divide(iv.NEAR.multiply(horizon, D(k)), D(2**level))
+            if 0 < at <= horizon and f(I(at)).lo >= 0:
+                return at
+    return None
+
+
+def _fire_root(b, s, H, cell, count, *, tight=False):
     """validation_A15.advance READY fire candidate, with horizon H (plain)."""
     v, dep = b.v, b.dep
     A, K, R = b.A, b.K, b.R
@@ -66,9 +85,14 @@ def _fire_root(b, s, H, cell, count):
         return None
     bb = J / (A - K); aa = q - R + bb
     probe = lambda u: b.shift(s['t'], u, f'{cell}:{count}:commute-probe')
-    f = lambda u: dep.evaluate(memory, probe(u)) - 1
+    if tight:
+        from cluster_memory_cover import charge_bound
+        evaluate = lambda t: charge_bound(b, memory, t)
+    else:
+        evaluate = lambda t: dep.evaluate(memory, t)
+    f = lambda u: evaluate(probe(u)) - 1
     df = lambda u: dep.evaluate(memory, probe(u), True)
-    memory_max = dep.evaluate(memory, probe(I(0, H)))
+    memory_max = evaluate(probe(I(0, H)))
     ratio = A * bb / (K * aa) if aa.lo > 0 else I(0)
     if ratio.lo > 0:
         pk = ratio.ln() / (A - K)
@@ -86,6 +110,17 @@ def _fire_root(b, s, H, cell, count):
         hi = H
         STATS['peak_fallback'] = STATS.get('peak_fallback', 0) + 1
     if not hi > 0 or f(I(hi)).lo < 0:
+        # A wide rectangular peak box can put peak.lo before every actual
+        # crossing. It does not disprove a crossing later in the same safe
+        # horizon. Reuse the slope-free cover when that horizon's endpoint
+        # certifies a crossing; no monotonicity is inferred from the peak.
+        witness = _crossing_witness(f, H)
+        if witness is None:
+            return None
+        root = _first_crossing_cover(f, witness)
+        if root is not None:
+            STATS['peak_bracket_fallback'] = STATS.get('peak_bracket_fallback', 0) + 1
+            return root, df
         return None
     try:
         if ratio.lo <= 0:
@@ -130,7 +165,7 @@ def _first_crossing_cover(f, hi, depth=12):
     return I(lower, upper)
 
 
-def _arrival_fire_root(b, s, group, H, cell, count):
+def _arrival_fire_root(b, s, group, H, cell, count, before=None):
     """Lemma E2: a READY fire CAUSED by arrivals of the group (Q0 alone never crosses).
 
     With the old memory Q0 and the group's raw arrivals a_j (actual, correlated
@@ -163,20 +198,65 @@ def _arrival_fire_root(b, s, group, H, cell, count):
         terms.append((ss['memory']['pulses'][(j, origin.token())]['g'], origin))
     probe = lambda u: b.shift(t0, u, f'{cell}:{count}:E2-probe')
 
-    def charge(u):
-        t = probe(u); total = dep.evaluate(memory, t)
+    def charge_at(t):
+        total = dep.evaluate(memory, t)
         for g, origin in terms:
             age = t.minus(origin)
             if age.hi >= 0:
                 total = total + g * dep.pulse(age)
         return total - 1
-    if not charge(I(H)).lo >= 0:
+    charge = lambda u: charge_at(probe(u))
+    witness = _crossing_witness(charge, H)
+    if witness is None:
         return _no('E2: no certain crossing before the horizon')
-    rho = _first_crossing_cover(charge, H)
+    rho = _first_crossing_cover(charge, witness)
     if rho is None:
         return _no('E2: first-crossing cover failed')
+    if before is not None:
+        fire = b.shift(t0, rho, f'{cell}:{count}:E2-order-probe')
+        for tt, _ in group:
+            # Already ordered date boxes need no extra proof. Otherwise test
+            # the entire counterfactual READY prefix, keeping tt's dependence.
+            if tt.minus(fire).hi < 0 or tt.minus(fire).lo > 0:
+                continue
+            duration = tt.minus(t0).nonnegative()
+            prefix = lambda lam: charge_at(b.shift(tt, -duration * lam, f'{cell}:{count}:E2-prefix'))
+            certificate = []
+            if _strict_prefix(prefix, certificate=certificate):
+                before.add(tt.token())
+                if b.PROFILE is not None:
+                    b.PROFILE.relative_order_proofs.append(dict(
+                        cell=cell, batch=count, guard='E2_subthreshold_prefix',
+                        event=tt.box().pair(), event_token=repr(tt.token()),
+                        cover=certificate,
+                        predicate='Q(event-lambda*(event-t0))<1 for all lambda in [0,1]; event strictly precedes first fire'))
+                STATS['e2_prefix_orders'] = STATS.get('e2_prefix_orders', 0) + 1
     STATS['e2_roots'] = STATS.get('e2_roots', 0) + 1
     return rho
+
+
+def _strict_prefix(charge_minus_one, depth=7, certificate=None):
+    """Q(event - lambda*(event-t0)) < 1 for every lambda in [0,1].
+
+    Only strict outward upper bounds discard a fire-before-event branch.
+    Overlap, equality or a finite subdivision limit keeps the branch.
+    """
+    stack = [(D(0), D(1), 0)]; cover = []
+    while stack:
+        left, right, level = stack.pop()
+        bound = charge_minus_one(I(left, right)).hi
+        if bound < 0:
+            cover.append([str(left), str(right), str(bound)])
+            continue
+        if level >= depth:
+            return False
+        middle = iv.NEAR.divide(iv.NEAR.add(left, right), D(2))
+        if not left < middle < right:
+            return False
+        stack.extend([(middle, right, level + 1), (left, middle, level + 1)])
+    if certificate is not None:
+        certificate.extend(cover)
+    return True
 
 AUXILIARY = ('mark_on', 'mark_off', 'error_on', 'error_off')
 MAX_EVENTS = 8
@@ -212,7 +292,7 @@ def resolve(b, s, pending, idx, stop, suffix, cell, count):
         return out + (stop,)
 
 
-def _resolve(b, s, group, next_lo, cell, count):
+def _resolve(b, s, group, next_lo, cell, count, *, tight=False):
     # Fix M: a joined READY state may have lost its pulse memory (different
     # anchors). Re-anchor it at the current time with the kernel's own
     # new_memory: charge box at t plus the active raw inputs as tails. By
@@ -256,10 +336,12 @@ def _resolve(b, s, group, next_lo, cell, count):
     # Horizon strictly before the next pending event.
     H = iv.DOWN.subtract(D(next_lo), t0.box().hi) if D(next_lo).is_finite() else D(1)
     H = iv.DOWN.multiply(min(H, D(1)), D('0.999999999'))
-    found = _fire_root(b, s, H, cell, count)
+    found = (_fire_root(b, s, H, cell, count, tight=True) if tight
+             else _fire_root(b, s, H, cell, count))
     e2 = None
+    before_fire = set()
     if found is None:
-        e2 = _arrival_fire_root(b, s, group, H, cell, count)
+        e2 = _arrival_fire_root(b, s, group, H, cell, count, before=before_fire)
         if e2 is not None:
             found = (e2, None)
     if found is None:
@@ -306,17 +388,24 @@ def _resolve(b, s, group, next_lo, cell, count):
     if not upper < D(next_lo):
         raise _Extend('fire may reach the next event')
     if not upper < fire.plus(1).box().lo:
+        if not tight and e2 is None:
+            # Retry the same physical charge and every event/fire order with
+            # the already available affine/scalar intersection. This can
+            # remove spurious early roots. It does not extend the fast phase,
+            # enlarge the horizon, or waive the strict check below.
+            STATS['fast_window_retries'] = STATS.get('fast_window_retries', 0) + 1
+            return _resolve(b, s, group, next_lo, cell, count, tight=True)
         return _no('window reaches the end of the fast section')
     U = b.v.T(f'{cell}:commute-U:{count}', I(upper))
     # Pass 2: fire at the common enclosure, remaining arrivals after it.
     poss = []
     for order, k, ss in prefixes:
-        # E2 only: drop a fire position that no trajectory can realize, i.e. an
+        # Both routes: drop a fire position that no trajectory can realize, i.e. an
         # event placed before the fire although it is certainly after it, or
         # placed after the fire although it is certainly before it (correlated
         # differences; equalities keep both positions).
-        if e2 is not None and not (all(tt.minus(fire).lo <= 0 for tt, _ in order[:k]) and
-                                   all(tt.minus(fire).hi >= 0 for tt, _ in order[k:])):
+        if not (all(tt.minus(fire).lo <= 0 for tt, _ in order[:k]) and
+                                   all(tt.minus(fire).hi >= 0 and tt.token() not in before_fire for tt, _ in order[k:])):
             continue
         ss = b.fire_reset(b.flowing(ss, fire, False))
         for tt, actions in order[k:]:
@@ -335,6 +424,7 @@ def _resolve(b, s, group, next_lo, cell, count):
         b.PROFILE.relative_order_proofs.append(dict(cell=cell, batch=count, guard='fire_arrival_commutation',
             arrivals=len(group), branches=len(poss), kappa=str(kappa), widening=str(delta), route='E2' if e2 is not None else 'E',
             fire=fire.box().pair(), join_time=U.box().pair(),
+            tight_charge=tight,
             events=[[a for a, _, _ in acts] for _, acts in group],
             predicate='min(a_min,f0) <= F <= f0 and F >= f0-kappa*(f0-a_min)^+ ; Q unchanged by raw_off/auxiliary actions; post-fire states of every order joined'))
     return joined, fire, len(poss)

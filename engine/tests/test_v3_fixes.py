@@ -60,10 +60,10 @@ class CommonGeneratorUnion(unittest.TestCase):
         self.assertLess(new.width(), D('1e-12'))
 
     def test_truncation_above_kmax_stays_outward(self):
-        self.assertEqual(af.KMAX, 256)
-        d = {str(i): 2.0 ** (-(i % 70)) for i in range(400)}
+        self.assertEqual(af.KMAX, 1024)
+        d = {str(i): 2.0 ** (-(i % 70)) for i in range(af.KMAX + 144)}
         x = I.make(D(0), D(0), d, 0.)
-        self.assertEqual(len(x.d), 256)
+        self.assertEqual(len(x.d), af.KMAX)
         self.assertGreaterEqual(F(x.hi), sum(map(F.from_float, d.values()), F(0)))
 
     def test_native_truncation_equals_reference(self):

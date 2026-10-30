@@ -1,0 +1,75 @@
+{
+ "campaign": {
+  "environment": {
+   "arithmetic_backend": "native",
+   "native_sha256": "29b1d226d6576e418c38d476cb050a20b37f6db67b6f70ca734423cac6985c57",
+   "numpy": "2.3.5",
+   "python": "3.12.14",
+   "scipy": "1.17.0"
+  },
+  "kernel_id": "c57d43fcf8ce1227dddddc566fac1df939860d994e34f0b7696819dcb2b4ce46",
+  "parameters": {
+   "epsilon_relative": "0.003",
+   "initial_delta": "1e-5",
+   "training_calendar": {
+    "count": 28,
+    "first": "0",
+    "gap": "8",
+    "last": "216",
+    "source_lane": 0,
+    "terminal_time": "230"
+   }
+  },
+  "run_id": "afd81b4e96cf4b8e81bade234c919e9f",
+  "schema": "A22-affine-research-campaign-1",
+  "scientific_status": "experimental_not_qualified"
+ },
+ "return_bound": "19",
+ "steps": [
+  {
+   "step": "run manifest",
+   "exit_code": 0,
+   "output": "488 files\n"
+  },
+  {
+   "step": "terminal extraction",
+   "exit_code": 0,
+   "output": "Audited layer 1\nAudited layer 2\nAudited layer 3\nAudited layer 4\nAudited layer 5\nAudited layer 6\nAudited layer 7\nAudited layer 8\nAudited layer 9\nAudited layer 10\nAudited layer 11\nAudited layer 12\nAudited layer 13\nAudited layer 14\nAudited layer 15\nAudited layer 16\nAudited layer 17\nAudited layer 18\n{\"full_payloads_verified\": 216, \"active_cells\": 191, \"inactive_cells\": 25, \"exact_rest_main_cells\": 191, \"exact_rest_aux_ports\": 540, \"pulses\": 2202, \"recorded_guards\": {\"no_fire_cover\": 2, \"recovery_group_local_cycle\": 9, \"fire_arrival_commutation\": 17}, \"gain_caps\": []}\n"
+  },
+  {
+   "step": "lineage and clocks",
+   "exit_code": 0,
+   "output": "Lineage and retained clocks checked through layer 1\nLineage and retained clocks checked through layer 2\nLineage and retained clocks checked through layer 3\nLineage and retained clocks checked through layer 4\nLineage and retained clocks checked through layer 5\nLineage and retained clocks checked through layer 6\nLineage and retained clocks checked through layer 7\nLineage and retained clocks checked through layer 8\nLineage and retained clocks checked through layer 9\nLineage and retained clocks checked through layer 10\nLineage and retained clocks checked through layer 11\nLineage and retained clocks checked through layer 12\nLineage and retained clocks checked through layer 13\nLineage and retained clocks checked through layer 14\nLineage and retained clocks checked through layer 15\nLineage and retained clocks checked through layer 16\nLineage and retained clocks checked through layer 17\nLineage and retained clocks checked through layer 18\n"
+  },
+  {
+   "step": "commutations",
+   "exit_code": 0,
+   "output": "Audited layer 1\nAudited layer 2\nAudited layer 3\nAudited layer 4\nAudited layer 5\nAudited layer 6\nAudited layer 7\nAudited layer 8\nAudited layer 9\nAudited layer 10\nAudited layer 11\nAudited layer 12\nAudited layer 13\nAudited layer 14\nAudited layer 15\nAudited layer 16\nAudited layer 17\nAudited layer 18\n{\"count\": 17, \"branches\": {\"2\": 4, \"3\": 4, \"4\": 2, \"5\": 2, \"19\": 2, \"48\": 1, \"342\": 2}, \"cells\": {\"18,0\": 1, \"18,1\": 1, \"18,2\": 1, \"18,4\": 3, \"18,5\": 3, \"18,7\": 3, \"18,8\": 3, \"18,10\": 1, \"18,11\": 1}, \"all_events_are_one_mark_off\": false, \"all_widenings_zero\": false, \"all_branch_counts_two\": false}\n"
+  },
+  {
+   "step": "mechanisms",
+   "exit_code": 0,
+   "output": "{\"cells_checked\": 216, \"guards\": {\"A19_no_additional_fire_recovery\": 3, \"E2_subthreshold_prefix\": 11, \"READY_event_relative_no_fire\": 964, \"READY_relative_first_crossing\": 6, \"charge_join_envelope\": 2762, \"empty_READY_memory_restored\": 15, \"fire_arrival_commutation\": 17, \"no_fire_cover\": 2, \"recovery_group_local_cycle\": 9}, \"commutation_routes\": {\"E\": 10, \"E2\": 7}, \"recovery_branch_groups\": 15, \"max_actuation_histories\": 3, \"max_deposit_histories\": 19}\n"
+  },
+  {
+   "step": "initial section",
+   "exit_code": 0,
+   "output": "{\"status\": \"PASS\", \"initial_section_time\": [\"0.000086822168960218459821058656830605344278434059427461540670137376545503062337884759070343\", \"0.000086822168960218459821058656830605344278434059427461540670137376545503062337884759070343\"], \"first_aux_delay\": [\"0.019938828185740931075997650623321533203125\", \"0.020150830567668429194005890037674721555215934059427461540670137376545503062337884759070343\"], \"initial_main_upper\": [\"0.101450000000000000000000000000000000000000000000000000000000000000000000000000000000000005\", \"0.101458665997993981945837512537612838515546639919759277833500501504513540621865596790371121\"], \"initial_aux_upper\": [\"0.029310181593908792722079441005057503350137674541081616174804399553615931540036015702007783\", \"0.029336060319649467502753941151527257633087349613545497515876442078512316283506643680154307\"], \"work_upper\": [\"239.828603468228381174913379954261872957056107867120045479774975850901777722885831078984525274\", \"241.256942339484801378861698403878796847653330179648026633064044752598357404805268039754861447\"]}\n"
+  },
+  {
+   "step": "future certificate (directed integers)",
+   "exit_code": 0,
+   "output": "Inequalities certified through layer 1\nInequalities certified through layer 2\nInequalities certified through layer 3\nInequalities certified through layer 4\nInequalities certified through layer 5\nInequalities certified through layer 6\nInequalities certified through layer 7\nInequalities certified through layer 8\nInequalities certified through layer 9\nInequalities certified through layer 10\nInequalities certified through layer 11\nInequalities certified through layer 12\nInequalities certified through layer 13\nInequalities certified through layer 14\nInequalities certified through layer 15\nInequalities certified through layer 16\nInequalities certified through layer 17\nInequalities certified through layer 18\nactive cells 191 inactive 25 masked ports 15 (v3.3: 191, 25, 15)\n{\"status\": \"PASS: future closure conditional on physical entry into the specified terminal domain\", \"global_quiescent_by\": \"12.791437644740439360649972525323400899224840508732252114360068460617671262540366652086148996\", \"global_idle_margin_before_20\": \"7.208562355259560639350027474676599100775159491267747885639931539382328737459633347913851004\", \"minimum_margins\": {\"before_first_raw_end\": \"0.002773974749061380862258374691009521484375\", \"influential_errors_end_before_reopening\": \"0.346377335854916843890382533622488837108724022064865214177616466066237813112746566861673763\", \"auxiliary_ready_before_next_same_port_input\": \"18.746237557203518877820536370950572588737893367602808425275827482447342026078234704112337009\", \"all_raw_inputs_end_before_reopening\": \"0.099340603790894339664584705705516101886455654462056788901788983618895787034511862749336754\", \"masked_arrival_after_firing\": \"0.048496749345531497965566813945770263671875\", \"before_first_error\": \"0.099482700211384563969068901459217546944128551844466600199401794616151545363908275174476569\", \"ready_before_next_input\": \"13.034706762026404170281537505899896219915784491267747885639931539382328737459633347913851004\"}, \"influential_active_ports\": 525}\n"
+  },
+  {
+   "step": "independent future check (directed decimals)",
+   "exit_code": 0,
+   "output": "{\n  \"status\": \"PASS\",\n  \"scope\": \"Independent verification of fixed future-wave brackets and strict guard inequalities; no training-entry qualification\",\n  \"arithmetic\": \"Decimal-directed 70-digit operations; degree-90 unscaled exponential series; 250-term atanh logarithms; explicit tails; no exp/ln library calls\",\n  \"certificate_sha256\": \"aba6b320117602cbbf492315b97f72812a28363f2ae6e3a6482ed30987267aea\",\n  \"terminal_input_sha256\": \"55c288ce5f64f8b9fbaa30bf6163c64370d0a237f1a53e84d056aeec41da8091\",\n  \"active_cells\": 191,\n  \"masked_ports\": 15,\n  \"influential_ports\": 525,\n  \"global_quiescent_upper\": \"12.79143764474043936064997252532340089922484050873225211436006846061790\",\n  \"global_quiescent_coarse_strict_bound\": \"19\",\n  \"idle_margin_coarse_strict_lower\": \"1\",\n  \"minimum_margins\": {\n    \"before_first_raw_end\": \"0.002773974749061380862258374691009521484375\",\n    \"before_first_error\": \"0.099482700211384563969068901459217546944128551844466600199401794616151\",\n    \"influential_errors_end_before_reopening\": \"0.346377335854916843890382533622488837108724022064865214177616466066226\",\n    \"all_raw_inputs_end_before_reopening\": \"0.099340603790894339664584705705516101886455654462056788901788983618886\",\n    \"ready_before_next_input\": \"13.03470676202640417028153750589989621991578449126774788563993153938210\",\n    \"auxiliary_ready_before_next_same_port_input\": \"18.74623755720351887782053637095057258873789336760280842527582748244734\",\n    \"masked_arrival_after_firing\": \"0.048496749345531497965566813945770263671875\"\n  },\n  \"work_upper\": \"241.2569423394848013788616984038787968476533301796480266330640447534076\",\n  \"domain_counts\": {\n    \"active_cells\": 191,\n    \"inactive_cells\": 25,\n    \"masked_ports\": 15,\n    \"influential_ports\": 525,\n    \"all_active_ports\": 540\n  },\n  \"return_contract\": {\n    \"requested_return_bound\": \"19\",\n    \"global_quiescent_upper\": \"12.79143764474043936064997252532340089922484050873225211436006846061790\",\n    \"global_idle_margin_lower\": \"7.20856235525956063935002747467659910077515949126774788563993153938210\",\n    \"checked_integer_global_return_coarse_upper\": \"12.7914376447404393606499725253234008992249\",\n    \"reporting_rounding_grid\": \"1e-40, ceiling\"\n  },\n  \"eps\": \"0.003\",\n  \"physical_entry_status\": \"NOT_ESTABLISHED_BY_THIS_FUTURE_CHECK\"\n}\n"
+  },
+  {
+   "step": "quiescent domain Q28",
+   "exit_code": 0,
+   "output": "{\"port_counts\": {\"influential\": 525, \"masked\": 15, \"silent\": 108}, \"cells\": 216}\n"
+  }
+ ]
+}

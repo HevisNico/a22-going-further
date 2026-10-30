@@ -1,7 +1,162 @@
-diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /home/user/hevisnico/a22-28-pulses/engine/affine/commutation.py engine/affine/commutation.py
---- /home/user/hevisnico/a22-28-pulses/engine/affine/commutation.py	2026-10-29 14:23:48.217019738 +0000
-+++ engine/affine/commutation.py	2026-10-29 19:09:03.000000000 +0000
-@@ -64,19 +64,32 @@
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/affine/affine_iv.py b/engine/affine/affine_iv.py
+--- a/engine/affine/affine_iv.py	2026-10-29 14:23:48.216688691 +0000
++++ b/engine/affine/affine_iv.py	2026-10-30 11:15:07.686326293 +0000
+@@ -27,7 +27,7 @@
+         return o
+ 
+ TINY=math.nextafter(0.0,math.inf)
+-KMAX=256   # v3: 96 -> 256 (same measured time; fewer correlation-destroying truncations)
++KMAX=1024  # precision parameter only; truncation is sound at any value
+ FRESH=None
+ ETHRESH=1e-9
+ _COUNTER=[0]
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/affine/charge_join.py b/engine/affine/charge_join.py
+--- a/engine/affine/charge_join.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/affine/charge_join.py	2026-10-30 11:15:07.686299038 +0000
+@@ -0,0 +1,48 @@
++"""Keep the charge union inside the envelope of ALL its constituent states.
++
++The original affine join remains pointwise valid but its scalar range can
++exceed every leaf range. The envelope [min(q_i.lo), max(q_i.hi)] is a second
++valid enclosure of the entire union. Their intersection preserves every
++branch. No physical threshold is used, and no learning history is changed.
++"""
++
++STATS = {'joins': 0, 'tightened': 0, 'empty_memories_restored': 0}
++
++
++def install(b):
++    original = b.join_states
++
++    def join_states(states, context):
++        states = list(states)
++        joined = original(states, context)
++        STATS['joins'] += 1
++        before = joined['q']
++        lo = min(state['q'].lo for state in states)
++        hi = max(state['q'].hi for state in states)
++        if before.lo < lo or before.hi > hi:
++            envelope = b.I(lo, hi)
++            joined['q'] = before.intersect(envelope)
++            STATS['tightened'] += 1
++            if getattr(b, 'PROFILE', None) is not None:
++                b.PROFILE.relative_order_proofs.append(dict(
++                    guard='charge_join_envelope', context=context,
++                    branches=len(states), time=joined['t'].box().pair(),
++                    affine_q=before.pair(), leaf_envelope=envelope.pair(),
++                    joined_q=joined['q'].pair(),
++                    predicate='Both enclosures contain every leaf charge; their intersection retains the entire union'))
++        # Different return clocks can make dep.join forget every memory.
++        # With no active raw input, q(t) is exactly R+(q0-R)exp(-K(t-t0))
++        # until the next admission. Re-anchor that existing formula at the
++        # actual joined q0; do not replace the residual charge by R.
++        if (joined.get('p') == 0 and joined.get('memory') is None
++                and joined.get('raw') == [None, None, None]):
++            joined['memory'] = b.dep.start(joined['t'], joined['q'], [])
++            STATS['empty_memories_restored'] += 1
++            if getattr(b, 'PROFILE', None) is not None:
++                b.PROFILE.relative_order_proofs.append(dict(
++                    guard='empty_READY_memory_restored', context=context,
++                    time=joined['t'].box().pair(), charge=joined['q'].pair(),
++                    predicate='READY with no raw input: retain q0 and re-anchor the existing homogeneous solution; later admissions use unchanged dep.add'))
++        return joined
++
++    b.join_states = join_states
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/affine/cluster_memory_cover.py b/engine/affine/cluster_memory_cover.py
+--- a/engine/affine/cluster_memory_cover.py	2026-10-29 14:23:48.217019738 +0000
++++ b/engine/affine/cluster_memory_cover.py	2026-10-30 11:15:07.685907004 +0000
+@@ -8,19 +8,58 @@
+ """
+ STATS = {'attempts': 0, 'resolved': 0, 'refused': 0, 'pieces': 0}
+ 
++def charge_bound(b, memory, t):
++    """Intersect the affine range with the existing scalar pulse envelope.
++
++    This extra range is used only for a guard proof; the propagated memory
++    retains its affine forms. Common clock differences are taken BEFORE
++    dropping correlation. Tail memories keep the original evaluator.
++    """
++    affine = b.dep.evaluate(memory, t)
++    if not isinstance(memory, dict) or 'pulses' not in memory:
++        return affine
++    if any(term['tail'] for term in memory['pulses'].values()):
++        return affine
++    elapsed = t.minus(memory['anchor']).nonnegative().plain()
++    plain = b.R + (memory['q'] - b.R).plain() * (-b.K * elapsed).exp()
++    for term in memory['pulses'].values():
++        age = t.minus(term['origin']).nonnegative().plain()
++        plain = plain + term['g'].plain() * b.dep.pulse(age)
++    return affine.intersect(plain)
++
++
+ def certify(b, s, tt, max_depth=8):
+     STATS['attempts'] += 1
+     if s['p'] != 0 or s.get('memory') is None:
+         STATS['refused'] += 1
+         return False
+     I, D = b.I, b.D
++    # Cover only the actual event-relative segment. The old forward box
++    # start+[0,max(end-start)] may extend beyond the end for another member
++    # of the parameter set, creating a false crossing inside the cluster.
++    from commutation import _strict_prefix
++    duration = tt.minus(s['t']).nonnegative()
++    def relative_charge(lam):
++        STATS['pieces'] += 1
++        probe = b.shift(tt, -duration * lam, 'READY-event-relative-cover')
++        return charge_bound(b, s['memory'], probe) - 1
++    certificate = []
++    if _strict_prefix(relative_charge, depth=max_depth, certificate=certificate):
++        STATS['resolved'] += 1
++        STATS['relative_resolved'] = STATS.get('relative_resolved', 0) + 1
++        if getattr(b, 'PROFILE', None) is not None:
++            b.PROFILE.relative_order_proofs.append(dict(
++                guard='READY_event_relative_no_fire', start=s['t'].box().pair(),
++                boundary=tt.box().pair(), cover=certificate,
++                predicate='Q(end-lambda*(end-start))<1 on the complete normalized segment'))
++        return True
+     H = tt.minus(s['t']).nonnegative().hi
+     stack = [(D(0), H, 0)]
+     import intervalles_decimaux as iv
+     while stack:
+         lo, hi, depth = stack.pop()
+         probe = b.shift(s['t'], I(lo, hi), 'READY-memory-cover')
+-        charge = b.dep.evaluate(s['memory'], probe)
++        charge = charge_bound(b, s['memory'], probe)
+         STATS['pieces'] += 1
+         if charge.hi < 1:
+             continue
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/affine/commutation.py b/engine/affine/commutation.py
+--- a/engine/affine/commutation.py	2026-10-29 14:23:48.217019738 +0000
++++ b/engine/affine/commutation.py	2026-10-30 11:15:07.686367820 +0000
+@@ -56,7 +56,26 @@
+     assert (2 * (b.A / b.K).ln() / (b.A - b.K)).lo > 1
+ 
+ 
+-def _fire_root(b, s, H, cell, count):
++def _crossing_witness(f, horizon, depth=4):
++    """Find an outward-certified above-threshold date, not a sampled device.
++
++    A transient pulse may already have decayed at the end of the horizon.
++    Every candidate evaluates the WHOLE parameter set; the finite grid only
++    proposes dates. Failure to find a witness never asserts no crossing.
++    """
++    if horizon <= 0:
++        return None
++    if f(I(horizon)).lo >= 0:
++        return horizon
++    for level in range(1, depth + 1):
++        for k in range(1, 2**level, 2):
++            at = iv.NEAR.divide(iv.NEAR.multiply(horizon, D(k)), D(2**level))
++            if 0 < at <= horizon and f(I(at)).lo >= 0:
++                return at
++    return None
++
++
++def _fire_root(b, s, H, cell, count, *, tight=False):
+     """validation_A15.advance READY fire candidate, with horizon H (plain)."""
+     v, dep = b.v, b.dep
+     A, K, R = b.A, b.K, b.R
+@@ -64,19 +83,48 @@
      memory = s.get('memory')
      if memory is None or not J.hi > 0 or not H > 0:
          return None
@@ -10,12 +165,19 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
 -    legacy_max = v.ready(q, J, x)
 +    bb = J / (A - K); aa = q - R + bb
      probe = lambda u: b.shift(s['t'], u, f'{cell}:{count}:commute-probe')
-     f = lambda u: dep.evaluate(memory, probe(u)) - 1
+-    f = lambda u: dep.evaluate(memory, probe(u)) - 1
++    if tight:
++        from cluster_memory_cover import charge_bound
++        evaluate = lambda t: charge_bound(b, memory, t)
++    else:
++        evaluate = lambda t: dep.evaluate(memory, t)
++    f = lambda u: evaluate(probe(u)) - 1
      df = lambda u: dep.evaluate(memory, probe(u), True)
-     memory_max = dep.evaluate(memory, probe(I(0, H)))
+-    memory_max = dep.evaluate(memory, probe(I(0, H)))
 -    if not min(legacy_max.hi, memory_max.hi) >= 1:
 -        return None
 -    hi = min(H, peak.lo)
++    memory_max = evaluate(probe(I(0, H)))
 +    ratio = A * bb / (K * aa) if aa.lo > 0 else I(0)
 +    if ratio.lo > 0:
 +        pk = ratio.ln() / (A - K)
@@ -33,6 +195,17 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
 +        hi = H
 +        STATS['peak_fallback'] = STATS.get('peak_fallback', 0) + 1
      if not hi > 0 or f(I(hi)).lo < 0:
++        # A wide rectangular peak box can put peak.lo before every actual
++        # crossing. It does not disprove a crossing later in the same safe
++        # horizon. Reuse the slope-free cover when that horizon's endpoint
++        # certifies a crossing; no monotonicity is inferred from the peak.
++        witness = _crossing_witness(f, H)
++        if witness is None:
++            return None
++        root = _first_crossing_cover(f, witness)
++        if root is not None:
++            STATS['peak_bracket_fallback'] = STATS.get('peak_bracket_fallback', 0) + 1
++            return root, df
          return None
      try:
 +        if ratio.lo <= 0:
@@ -40,11 +213,11 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
          return v.root(f, df, D(0), hi, v.guessroot(f, hi)), df
      except (v.Ambiguous, ValueError, AssertionError):
          STATS['cover_roots'] = STATS.get('cover_roots', 0) + 1
-@@ -117,6 +130,54 @@
+@@ -117,6 +165,99 @@
      return I(lower, upper)
  
  
-+def _arrival_fire_root(b, s, group, H, cell, count):
++def _arrival_fire_root(b, s, group, H, cell, count, before=None):
 +    """Lemma E2: a READY fire CAUSED by arrivals of the group (Q0 alone never crosses).
 +
 +    With the old memory Q0 and the group's raw arrivals a_j (actual, correlated
@@ -77,28 +250,75 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
 +        terms.append((ss['memory']['pulses'][(j, origin.token())]['g'], origin))
 +    probe = lambda u: b.shift(t0, u, f'{cell}:{count}:E2-probe')
 +
-+    def charge(u):
-+        t = probe(u); total = dep.evaluate(memory, t)
++    def charge_at(t):
++        total = dep.evaluate(memory, t)
 +        for g, origin in terms:
 +            age = t.minus(origin)
 +            if age.hi >= 0:
 +                total = total + g * dep.pulse(age)
 +        return total - 1
-+    if not charge(I(H)).lo >= 0:
++    charge = lambda u: charge_at(probe(u))
++    witness = _crossing_witness(charge, H)
++    if witness is None:
 +        return _no('E2: no certain crossing before the horizon')
-+    rho = _first_crossing_cover(charge, H)
++    rho = _first_crossing_cover(charge, witness)
 +    if rho is None:
 +        return _no('E2: first-crossing cover failed')
++    if before is not None:
++        fire = b.shift(t0, rho, f'{cell}:{count}:E2-order-probe')
++        for tt, _ in group:
++            # Already ordered date boxes need no extra proof. Otherwise test
++            # the entire counterfactual READY prefix, keeping tt's dependence.
++            if tt.minus(fire).hi < 0 or tt.minus(fire).lo > 0:
++                continue
++            duration = tt.minus(t0).nonnegative()
++            prefix = lambda lam: charge_at(b.shift(tt, -duration * lam, f'{cell}:{count}:E2-prefix'))
++            certificate = []
++            if _strict_prefix(prefix, certificate=certificate):
++                before.add(tt.token())
++                if b.PROFILE is not None:
++                    b.PROFILE.relative_order_proofs.append(dict(
++                        cell=cell, batch=count, guard='E2_subthreshold_prefix',
++                        event=tt.box().pair(), event_token=repr(tt.token()),
++                        cover=certificate,
++                        predicate='Q(event-lambda*(event-t0))<1 for all lambda in [0,1]; event strictly precedes first fire'))
++                STATS['e2_prefix_orders'] = STATS.get('e2_prefix_orders', 0) + 1
 +    STATS['e2_roots'] = STATS.get('e2_roots', 0) + 1
 +    return rho
++
++
++def _strict_prefix(charge_minus_one, depth=7, certificate=None):
++    """Q(event - lambda*(event-t0)) < 1 for every lambda in [0,1].
++
++    Only strict outward upper bounds discard a fire-before-event branch.
++    Overlap, equality or a finite subdivision limit keeps the branch.
++    """
++    stack = [(D(0), D(1), 0)]; cover = []
++    while stack:
++        left, right, level = stack.pop()
++        bound = charge_minus_one(I(left, right)).hi
++        if bound < 0:
++            cover.append([str(left), str(right), str(bound)])
++            continue
++        if level >= depth:
++            return False
++        middle = iv.NEAR.divide(iv.NEAR.add(left, right), D(2))
++        if not left < middle < right:
++            return False
++        stack.extend([(middle, right, level + 1), (left, middle, level + 1)])
++    if certificate is not None:
++        certificate.extend(cover)
++    return True
 +
  AUXILIARY = ('mark_on', 'mark_off', 'error_on', 'error_off')
  MAX_EVENTS = 8
  
-@@ -152,6 +213,15 @@
+@@ -151,7 +292,16 @@
+         return out + (stop,)
  
  
- def _resolve(b, s, group, next_lo, cell, count):
+-def _resolve(b, s, group, next_lo, cell, count):
++def _resolve(b, s, group, next_lo, cell, count, *, tight=False):
 +    # Fix M: a joined READY state may have lost its pulse memory (different
 +    # anchors). Re-anchor it at the current time with the kernel's own
 +    # new_memory: charge box at t plus the active raw inputs as tails. By
@@ -111,19 +331,23 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
      if s['p'] != 0 or s.get('memory') is None or not group:
          return _no('state is not READY with a pulse memory')
      arrivals = []          # raw_on dates: they add a pulse (Lemmas 1-2)
-@@ -187,6 +257,11 @@
+@@ -186,7 +336,14 @@
+     # Horizon strictly before the next pending event.
      H = iv.DOWN.subtract(D(next_lo), t0.box().hi) if D(next_lo).is_finite() else D(1)
      H = iv.DOWN.multiply(min(H, D(1)), D('0.999999999'))
-     found = _fire_root(b, s, H, cell, count)
+-    found = _fire_root(b, s, H, cell, count)
++    found = (_fire_root(b, s, H, cell, count, tight=True) if tight
++             else _fire_root(b, s, H, cell, count))
 +    e2 = None
++    before_fire = set()
 +    if found is None:
-+        e2 = _arrival_fire_root(b, s, group, H, cell, count)
++        e2 = _arrival_fire_root(b, s, group, H, cell, count, before=before_fire)
 +        if e2 is not None:
 +            found = (e2, None)
      if found is None:
          if D(next_lo).is_finite(): raise _Extend('no certified crossing before the next event')
          return _no('no certified crossing')
-@@ -218,13 +293,13 @@
+@@ -218,28 +375,44 @@
          gains = max(gains, added)
      # Lemma 2 when a positive slope bound exists on the window, else kappa=1.
      kappa = D(1)
@@ -139,16 +363,27 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
      rho = r0 + I(delta.copy_negate(), D(0)) if delta > 0 else r0
      fire = b.shift(t0, rho, f'{cell}:{count}:commuted-fire')
      upper = max([fire.box().hi] + [tt.box().hi for tt, _ in group])
-@@ -236,10 +311,19 @@
+     if not upper < D(next_lo):
+         raise _Extend('fire may reach the next event')
+     if not upper < fire.plus(1).box().lo:
++        if not tight and e2 is None:
++            # Retry the same physical charge and every event/fire order with
++            # the already available affine/scalar intersection. This can
++            # remove spurious early roots. It does not extend the fast phase,
++            # enlarge the horizon, or waive the strict check below.
++            STATS['fast_window_retries'] = STATS.get('fast_window_retries', 0) + 1
++            return _resolve(b, s, group, next_lo, cell, count, tight=True)
+         return _no('window reaches the end of the fast section')
+     U = b.v.T(f'{cell}:commute-U:{count}', I(upper))
      # Pass 2: fire at the common enclosure, remaining arrivals after it.
      poss = []
      for order, k, ss in prefixes:
-+        # E2 only: drop a fire position that no trajectory can realize, i.e. an
++        # Both routes: drop a fire position that no trajectory can realize, i.e. an
 +        # event placed before the fire although it is certainly after it, or
 +        # placed after the fire although it is certainly before it (correlated
 +        # differences; equalities keep both positions).
-+        if e2 is not None and not (all(tt.minus(fire).lo <= 0 for tt, _ in order[:k]) and
-+                                   all(tt.minus(fire).hi >= 0 for tt, _ in order[k:])):
++        if not (all(tt.minus(fire).lo <= 0 for tt, _ in order[:k]) and
++                                   all(tt.minus(fire).hi >= 0 and tt.token() not in before_fire for tt, _ in order[k:])):
 +            continue
          ss = b.fire_reset(b.flowing(ss, fire, False))
          for tt, actions in order[k:]:
@@ -159,19 +394,30 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
      first = poss[0]
      assert all(x['p'] == 1 and x['aux'] == first['aux'] and x['fire'] is fire and
                 [(t.token() if t else None) for t in x['raw']] == [(t.token() if t else None) for t in first['raw']]
-@@ -249,7 +333,7 @@
+@@ -249,8 +422,9 @@
      if b.PROFILE is not None:
          b.PROFILE.guard('fire', fire)
          b.PROFILE.relative_order_proofs.append(dict(cell=cell, batch=count, guard='fire_arrival_commutation',
 -            arrivals=len(group), branches=len(poss), kappa=str(kappa), widening=str(delta),
 +            arrivals=len(group), branches=len(poss), kappa=str(kappa), widening=str(delta), route='E2' if e2 is not None else 'E',
              fire=fire.box().pair(), join_time=U.box().pair(),
++            tight_charge=tight,
              events=[[a for a, _, _ in acts] for _, acts in group],
              predicate='min(a_min,f0) <= F <= f0 and F >= f0-kappa*(f0-a_min)^+ ; Q unchanged by raw_off/auxiliary actions; post-fire states of every order joined'))
-diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /home/user/hevisnico/a22-28-pulses/engine/affine/engine.py engine/affine/engine.py
---- /home/user/hevisnico/a22-28-pulses/engine/affine/engine.py	2026-10-29 14:23:48.217019738 +0000
-+++ engine/affine/engine.py	2026-10-29 18:36:10.000000000 +0000
-@@ -223,6 +223,10 @@
+     return joined, fire, len(poss)
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/affine/engine.py b/engine/affine/engine.py
+--- a/engine/affine/engine.py	2026-10-29 14:23:48.217019738 +0000
++++ b/engine/affine/engine.py	2026-10-30 11:15:07.686002482 +0000
+@@ -42,6 +42,8 @@
+ import cluster_memory_cover
+ b.READY_MEMORY_COVER = lambda s, tt: cluster_memory_cover.certify(b, s, tt)
+ exec(compile(_flow.replace(_peak_old, _peak_new), b.__file__, 'exec'), b.__dict__)
++import gain_range
++gain_range.install(b)
+ import avance_causale_A22 as causal
+ assert b.I is I and dep.I is I and v.I is I, 'affine class not installed everywhere'
+ 
+@@ -223,6 +225,10 @@
  # READY with no emission is joined (same rule as the single-event path).
  # Anything else re-raises the original refusal.
  import recovery_group
@@ -182,7 +428,7 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
  b.RECOVERY_GROUP = lambda s, pending, idx, cell, count: recovery_group.resolve(b, s, pending, idx, cell, count)
  _hook_single_old = ("            try:s,kind=advance(s,tt,cell,count)\n"
                      "            except v.Ambiguous:\n"
-@@ -234,6 +238,9 @@
+@@ -234,6 +240,9 @@
                      "                    s,_f,_n,_k=_c;out.append(_f);count+=_k-idx+1;idx=_k;clusters+=1;branches+=_n\n"
                      "                    continue\n"
                      "                if s['p']!=2:raise\n")
@@ -192,7 +438,7 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
  # Same situation inside an exterior cluster: the guard-free order enumeration
  # asserts 'internal crossing inside uncertain external cluster'.  Only that
  # assertion is intercepted, and only for a READY state with pure arrivals.
-@@ -249,6 +256,11 @@
+@@ -249,6 +258,11 @@
                       "                    for tt,actions in order:ss=act(flowing(ss,tt,True),actions)\n"
                       "                    ss=flowing(ss,U,True);poss.append(ss)\n"
                       "            except AssertionError as _refusal:\n"
@@ -204,18 +450,41 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
                       "                if str(_refusal)!='internal crossing inside uncertain external cluster':raise\n"
                       "                _c=COMMUTE(s,pending,idx,stopidx,suffix,cell,count)\n"
                       "                if _c is None:raise\n"
-@@ -476,3 +488,8 @@
+@@ -286,6 +300,17 @@
+ _old_order = "if not all(tt.box().hi<=x.box().lo for x,_,_ in candidates[1:]):"
+ assert _adv.count(_old_order) == 1
+ _adv = _adv.replace(_old_order, "if not all(x.minus(tt).lo>=0 for x,_,_ in candidates[1:]):")
++# Fix T: READY fire root in coordinates relative to an admitted pulse
++# (affine/relative_root.py); the original root is kept as the fallback.
++_rel_old = "                else:root=v.root(f,df,D(0),hi,v.guessroot(f,hi))\n"
++assert _adv.count(_rel_old) == 1, 'unexpected advance() root source'
++_adv = _adv.replace(_rel_old, "                else:root=RELATIVE_ROOT(s,memory,f,df,hi,cell,count)\n")
++import relative_root as _relative_root
++# Fix T': recovery return root relative to the latest mark (affine/relative_return.py).
++import branche_retour_A19 as _recovery
++import relative_return as _relative_return
++_relative_return.install(b, _recovery)
++_relative_root.install(b, sys.modules[__name__])
+ exec(compile(_adv, b.__file__, 'exec'), b.__dict__)
+ 
+ # ---------------- fix B: sound affine min/max in clip/cap/clamp sites -----
+@@ -476,3 +501,13 @@
  # Strict subthreshold time-cover fallback; no physical or parameter change.
  import nofire_cover as _nofire_cover
  _nofire_cover.install(sys.modules[__name__])
++
++# Apply the existing leaf-envelope argument to every state charge join,
++# including the successful A20 recovery route and ordinary READY clusters.
++import charge_join as _charge_join
++_charge_join.install(b)
 +
 +# Fix F: per-history recomputation of a cell (affine/fork.py). Installed last,
 +# so the advance wrapper sees the final effective advance and compute_cell.
 +import fork as _fork
 +_fork.install(b, sys.modules[__name__])
-diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /home/user/hevisnico/a22-28-pulses/engine/affine/fork.py engine/affine/fork.py
---- /home/user/hevisnico/a22-28-pulses/engine/affine/fork.py	1970-01-01 00:00:00.000000000 +0000
-+++ engine/affine/fork.py	2026-10-29 18:37:47.000000000 +0000
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/affine/fork.py b/engine/affine/fork.py
+--- a/engine/affine/fork.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/affine/fork.py	2026-10-30 11:15:07.686067250 +0000
 @@ -0,0 +1,94 @@
 +"""Fix F: case split of a cell on its actuation histories (scenario propagation).
 +
@@ -311,9 +580,65 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
 +    metrics.update(pulses=len(outputs), history_fork_leaves=len(leaves),
 +                   max_width=str(max((t.box().width() for t in outputs), default=D(0))))
 +    return {'outputs': outputs, 'state': state, 'metrics': metrics}
-diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /home/user/hevisnico/a22-28-pulses/engine/affine/history_split.py engine/affine/history_split.py
---- /home/user/hevisnico/a22-28-pulses/engine/affine/history_split.py	1970-01-01 00:00:00.000000000 +0000
-+++ engine/affine/history_split.py	2026-10-29 18:46:03.000000000 +0000
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/affine/gain_range.py b/engine/affine/gain_range.py
+--- a/engine/affine/gain_range.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/affine/gain_range.py	2026-10-30 11:15:07.686113074 +0000
+@@ -0,0 +1,52 @@
++"""Range tightening at pulse admission; the logarithmic learning ledger stays intact.
++
++For every represented z, exp(z) belongs both to the affine exponential
++and to [exp(inf z), exp(sup z)]. Their intersection removes nonlinear
++remainder overshoot. Only admitted gains are tightened; exp arithmetic,
++the physical maps, and the learning histories are unchanged.
++"""
++from decimal import Decimal
++
++
++def enclose(gain, log_gain):
++    scalar = log_gain.plain().exp()
++    # Preserve useful affine dependence for narrow gains. The 5% threshold
++    # only chooses between two valid enclosures; it is not a physical bound
++    # or an acceptance margin. Tiny range improvements need not discard the
++    # correlations carried by the original affine amplitude.
++    if gain.width() <= scalar.width() * Decimal('1.05'):
++        return gain
++    return gain.intersect(scalar)
++
++
++def install(b):
++    original_act = b.act
++    original_memory = b.new_memory
++
++    def act(s, changes):
++        result = original_act(s, changes)
++        if s['p'] != 0 or result.get('memory') is None:
++            return result
++        admitted = [(j, origin) for action, j, origin in changes
++                    if action == 'raw_on' and not s['caps'][j]]
++        if not admitted:
++            return result
++        memory = dict(result['memory']); pulses = dict(memory['pulses'])
++        for j, origin in admitted:
++            key = (j, origin.token()); term = dict(pulses[key])
++            term['g'] = enclose(term['g'], s['z'][j]); pulses[key] = term
++        memory['pulses'] = pulses; result['memory'] = memory
++        return result
++
++    def new_memory(s):
++        memory = original_memory(s)
++        pulses = dict(memory['pulses'])
++        for key, old in pulses.items():
++            j = key[0]
++            if not s['caps'][j]:
++                term = dict(old); term['g'] = enclose(old['g'], s['z'][j])
++                pulses[key] = term
++        return dict(memory, pulses=pulses)
++
++    b.act = act
++    b.new_memory = new_memory
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/affine/history_split.py b/engine/affine/history_split.py
+--- a/engine/affine/history_split.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/affine/history_split.py	2026-10-30 11:15:07.685778008 +0000
 @@ -0,0 +1,67 @@
 +"""Fix H: resolve a protected recovery window once per actuation history.
 +
@@ -382,9 +707,1433 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
 +        return local.Forest(branches, certificate), stop, group
 +
 +    local.pending_window = pending_window
-diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /home/user/hevisnico/a22-28-pulses/engine/tests/test_v33_ports.py engine/tests/test_v33_ports.py
---- /home/user/hevisnico/a22-28-pulses/engine/tests/test_v33_ports.py	2026-10-29 14:23:48.223604515 +0000
-+++ engine/tests/test_v33_ports.py	2026-10-29 18:25:50.000000000 +0000
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/affine/nofire_cover.py b/engine/affine/nofire_cover.py
+--- a/engine/affine/nofire_cover.py	2026-10-29 14:23:48.217019738 +0000
++++ b/engine/affine/nofire_cover.py	2026-10-30 11:15:07.685742149 +0000
+@@ -1,4 +1,11 @@
+-"""Conservative fallback: cover a refused READY window by strict subthreshold boxes.
++"""Conservative fallbacks for a refused READY guard with pulse memory.
++
++If the charge is strictly above threshold at the actual external boundary,
++reuse the slope-free first-crossing cover. This avoids requiring the legacy
++peak-location box to give a common monotone bracket. The normalized clock
++boundary - (1-u)*(boundary-start), u in [0,1], preserves the boundary's atoms.
++Continuity and the two strict endpoint signs prove a first fire strictly
++before that boundary, without any derivative or nominal event ordering.
+ 
+ No new arrival is processed before the requested external boundary. Admitted
+ pulse amplitudes are constant; the pulse-memory evaluator includes raw cuts.
+@@ -7,14 +14,63 @@
+ An undecided piece, finite budget failure, or other refusal propagates the
+ original exception. This is an experimental kernel addition, not qualification.
+ """
++def first_fire(b, s, boundary, cell, count):
++    """Return a certified first-fire clock, or None; no physical map changes."""
++    from commutation import _first_crossing_cover
++    from cluster_memory_cover import charge_bound
++    if s['p'] != 0 or s.get('memory') is None:
++        return None
++    duration = boundary.minus(s['t']).nonnegative()
++    endpoint = charge_bound(b, s['memory'], boundary) - 1
++    if endpoint.lo <= 0:
++        return None
++    probe = lambda u: b.shift(boundary, -duration * (1-u), f'{cell}:{count}:relative-first-fire')
++    charge = lambda u: charge_bound(b, s['memory'], probe(u)) - 1
++    rho = None
++    route = 'slope_free_cover'
++    # Retain the existing affine root when monotonicity is certified on the
++    # WHOLE interval. A positive derivative only near a root would not prove
++    # that it is the first root.
++    derivative = lambda u: duration * b.dep.evaluate(s['memory'], probe(u), True)
++    if charge(b.I(0)).hi < 0 and derivative(b.I(0,1)).lo > 0:
++        try:
++            rho = b.v.root(charge, derivative, b.D(0), b.D(1), b.v.guessroot(charge, b.D(1)))
++            route = 'monotone_affine_root'
++        except (b.v.Ambiguous, ValueError, AssertionError):
++            pass
++    if rho is None:
++        rho = _first_crossing_cover(charge, b.D(1))
++    if rho is None:
++        return None
++    fire = probe(rho)
++    if b.PROFILE is not None:
++        b.PROFILE.relative_order_proofs.append(dict(
++            cell=cell, batch=count, guard='READY_relative_first_crossing',
++            start=s['t'].box().pair(), boundary=boundary.box().pair(),
++            start_margin=charge(b.I(0)).pair(), boundary_margin=endpoint.pair(),
++            normalized_root=rho.pair(), fire=fire.box().pair(),
++            route=route,
++            predicate='Continuous fixed-memory READY flow; strict endpoint signs; slope-free cover encloses first crossing before the actual boundary'))
++    return fire
++
++
+ def install(engine):
+     b,I,D,iv=engine.b,engine.I,engine.D,engine.iv
+     original=b.advance
+     def advance(s,boundary,cell,count):
+         try:return original(s,boundary,cell,count)
+         except b.v.Ambiguous as error:
+-            if (str(error)!='ready guard still overlaps external boundary or possible tangency'
++            legacy_overlap = str(error)=='ready guard still overlaps external boundary or possible tangency'
++            root_refusal = str(error).startswith('root bracket failed:')
++            if (not (legacy_overlap or root_refusal)
+                     or s['p']!=0 or s.get('memory') is None):raise
++            fire = first_fire(b, s, boundary, cell, count)
++            if fire is not None:
++                out = b.fire_reset(b.flowing(s, fire))
++                if b.PROFILE is not None:b.PROFILE.guard('fire', fire)
++                return out, 'fire'
++            if not legacy_overlap:
++                raise
+             H=boundary.minus(s['t']).nonnegative().hi
+             stack=[(D(0),H,0)];leaves=[]
+             while stack:
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/affine/recovery_group.py b/engine/affine/recovery_group.py
+--- a/engine/affine/recovery_group.py	2026-10-29 14:23:48.217019738 +0000
++++ b/engine/affine/recovery_group.py	2026-10-30 11:15:07.685703682 +0000
+@@ -17,6 +17,77 @@
+ STATS = {'recovery_groups': 0}
+ 
+ 
++def no_fire_group(b, s, pending, idx, cell, count):
++    """Reuse A19's stricter, no-additional-fire resolver after A20 refuses.
++
++    Only raw cuts and ERROR boundaries are admitted. They do not change the
++    protected actuation ledger. A19 still enumerates all orders, propagates
++    all learning gates, and certifies every post-return READY flow. Nothing
++    is accepted merely because an order or branch budget was exhausted.
++    """
++    if s['p'] != 2 or idx >= len(pending):
++        return None
++    import branche_retour_A19 as recovery
++    from types import FunctionType
++    try:
++        late = recovery.return_with_marks(s, f'{cell}:{count}:no-fire-return')
++        upper = late.box().hi; stop = idx; group = []
++        while stop < len(pending) and min(t.box().lo for t, _ in pending[stop:]) < upper:
++            tt, actions = pending[stop]
++            if any(a not in ('raw_off', 'error_on', 'error_off') for a, _, _ in actions):
++                return None
++            group.append((tt, actions)); upper = max(upper, tt.box().hi); stop += 1
++        if not group:
++            return None
++        histories = s['actuation']; fire = s['fire'].token()
++        original_return = recovery.return_with_marks
++        def cached_return(ss, key):
++            if (ss['fire'].token() == fire and len(ss['actuation']) == len(histories)
++                    and all(x is y for x, y in zip(ss['actuation'], histories))):
++                return late
++            return original_return(ss, key)
++        charge_joins = []
++        class KernelView:
++            def __getattr__(self, name):
++                return getattr(b, name)
++
++            def join_states(self, states, context):
++                joined = b.join_states(states, context)
++                # Both bounds contain every leaf pointwise. A common-generator
++                # affine union can extend beyond all of its leaves' ranges;
++                # intersecting with their plain envelope removes that excess.
++                envelope = b.I(min(x['q'].lo for x in states),
++                               max(x['q'].hi for x in states))
++                before = joined['q']
++                joined['q'] = before.intersect(envelope)
++                charge_joins.append(dict(branches=len(states), affine_q=before.pair(),
++                                         leaf_envelope=envelope.pair(), joined_q=joined['q'].pair()))
++                return joined
++        # Run the unchanged function body with a private binding: no global
++        # monkeypatch and no cache shared between cells or parameter boxes.
++        original = recovery.resolve
++        guarded = FunctionType(original.__code__,
++                               {**original.__globals__, 'return_with_marks': cached_return,
++                                'b': KernelView()},
++                               original.__name__, original.__defaults__, original.__closure__)
++        joined, orders = guarded(s, group, upper, late, cell, count)
++        if joined['p'] != 0 or joined['q'].hi >= 1:
++            return None
++    except (b.v.Ambiguous, AssertionError, ArithmeticError, ValueError) as error:
++        key = f'{type(error).__name__}: {error}'
++        refused = STATS.setdefault('no_fire_declined', {})
++        refused[key] = refused.get(key, 0) + 1
++        return None
++    if b.PROFILE is not None:
++        b.PROFILE.relative_order_proofs.append(dict(
++            cell=cell, batch=count, guard='A19_no_additional_fire_recovery',
++            events=len(group), orders=orders, return_time=late.box().pair(),
++            terminal_q=joined['q'].pair(), charge_joins=charge_joins,
++            predicate='Complete transitive group; unchanged A19 resolver certifies every surviving READY flow and retains all learning histories'))
++    STATS['no_fire_recovery_groups'] = STATS.get('no_fire_recovery_groups', 0) + 1
++    return joined, stop, len(group) + 1, orders
++
++
+ def resolve(b, s, pending, idx, cell, count):
+     if s['p'] != 2:
+         return None
+@@ -24,7 +95,7 @@
+     try:
+         forest, nextidx, handled = pending_window(s, pending, idx, cell, count)
+     except b.v.Ambiguous:
+-        return None
++        return no_fire_group(b, s, pending, idx, cell, count)
+     if not forest.branches or not all(not x.emissions and x.state['p'] == 0 for x in forest.branches):
+         return None
+     joined = b.join_states([x.state for x in forest.branches],
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/affine/relative_return.py b/engine/affine/relative_return.py
+--- a/engine/affine/relative_return.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/affine/relative_return.py	2026-10-30 11:15:07.685672940 +0000
+@@ -0,0 +1,51 @@
++"""Fix T': protected-recovery return root in coordinates relative to a mark.
++
++branche_retour_A19.return_with_marks encloses the return to READY as
++section + u*, where section = fire + 1 and u* is the zero of ell along the
++protected history. When the fire date is uncertain but the return is fixed
++mainly by later marks, that coordinate carries the whole fire uncertainty into
++u*. The same function ell is solved here in coordinates relative to the
++origin a_r of the latest mark of the history: t = a_r + v.
++
++Soundness. Along a protected history, ell(t) = ln 2.5 - capped dose is
++nonincreasing in t (the recovery rate b is positive), constant before the
++section, and strictly decreasing wherever the rate enclosure is strictly
++positive. The kernel root routine accepts a bracket [l, h] only if
++-ell(l) <= 0 <= -ell(h) and the rate enclosure on [l, h] is strictly positive
++for every parameter point. Then ell is strictly decreasing on [l, h] and
++nonincreasing everywhere, so its zero in [l, h] is the unique zero of ell: the
++return. The original root is computed first and returned whenever the relative
++one fails or is not narrower.
++"""
++from decimal import Decimal as D
++
++STATS = {'relative_returns': 0, 'relative_return_declined': 0}
++
++
++def install(b, recovery):
++    original = recovery.return_with_marks
++    ac = recovery.ac
++    hull = recovery.hull
++
++    def return_with_marks(s, key):
++        plain = original(s, key)
++        marks = [m for h in s['actuation'] for m in h.marks]
++        if not marks:
++            return plain
++        ref = max(marks, key=lambda m: m.origin.box().hi).origin
++        probe = lambda w: b.shift(ref, w, key + ':rel-probe')
++        g = lambda w: -hull([ac.ell(h, probe(w), False) for h in s['actuation']])
++        dg = lambda w: hull([ac.rate(h, probe(w), False) for h in s['actuation']])
++        span = plain.minus(ref)
++        try:
++            rv = b.v.root(g, dg, span.lo, span.hi, b.v.guessroot(g, span.hi) if span.lo <= 0 else (span.lo + span.hi) / 2)
++        except (b.v.Ambiguous, AssertionError, ArithmeticError, ValueError):
++            STATS['relative_return_declined'] += 1
++            return plain
++        out = b.shift(ref, rv, key + ':rel-ready')
++        if out.box().width() < plain.box().width():
++            STATS['relative_returns'] += 1
++            return out
++        return plain
++
++    recovery.return_with_marks = return_with_marks
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/affine/relative_root.py b/engine/affine/relative_root.py
+--- a/engine/affine/relative_root.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/affine/relative_root.py	2026-10-30 11:15:07.685955761 +0000
+@@ -0,0 +1,55 @@
++"""Fix T: READY first-fire root in coordinates relative to an admitted pulse.
++
++The READY charge Q(t) = dep.evaluate(memory, t) is unchanged; only the time
++coordinate changes. With a_c the origin of an admitted pulse (correlated date),
++write t = a_c + v and g(v) = Q(a_c + v) - 1. When every arrival moves with a_c,
++g does not move at all, so its root v* is much tighter than the root u* of
++f(u) = Q(t0 + u) - 1, whose enclosure absorbs the arrival uncertainty.
++
++Soundness. The original root u* (kept) lies in [0, hi], where Q is strictly
++increasing (hi is before the certified peak), so for every parameter point
++the first crossing is the unique zero of g on W = [t0 - a_c, t0 - a_c + hi].
++The relative root is accepted only from a bracket [l, h] on which g has a
++strictly positive slope enclosure and g(l) <= 0 <= g(h) for every parameter
++point, and which meets W for every parameter point (l <= lo(t0 - a_c) + hi and
++h >= hi(t0 - a_c)). g is then strictly increasing on the interval [l, h] U W,
++so its zero in [l, h] is v*. Otherwise the original root is returned.
++"""
++from decimal import Decimal as D
++
++STATS = {'relative_roots': 0, 'relative_declined': 0}
++
++
++def install(b, engine):
++    v, dep = b.v, b.dep
++
++    def relative_root(s, memory, f, df, hi, cell, count):
++        plain = v.root(f, df, D(0), hi, v.guessroot(f, hi))
++        refs = [(term['g'].hi, term['origin']) for term in memory['pulses'].values() if not term['tail']]
++        if not refs:
++            return plain
++        t0 = s['t']
++        a_c = max(refs, key=lambda x: x[0])[1]
++        off = t0.minus(a_c)
++        probe = lambda w: b.shift(a_c, w, f'{cell}:{count}:relprobe')
++        g = lambda w: dep.evaluate(memory, probe(w)) - 1
++        dg = lambda w: dep.evaluate(memory, probe(w), True)
++        lo, top = off.lo + plain.lo, off.hi + plain.hi
++        try:
++            guess = (lo + top) / 2
++            rv = v.root(g, dg, lo, top, guess)
++            bracket = rv.plain()
++        except (v.Ambiguous, AssertionError, ArithmeticError, ValueError):
++            STATS['relative_declined'] += 1
++            return plain
++        # The bracket must meet W for every parameter point (see docstring).
++        if not (bracket.lo <= off.lo + hi and bracket.hi >= off.hi):
++            STATS['relative_declined'] += 1
++            return plain
++        u = b.shift(a_c, rv, f'{cell}:{count}:relfire').minus(t0)
++        if u.width() < plain.width():
++            STATS['relative_roots'] += 1
++            return u
++        return plain
++
++    b.RELATIVE_ROOT = relative_root
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/tests/test_c7_c6_p.py b/engine/tests/test_c7_c6_p.py
+--- a/engine/tests/test_c7_c6_p.py	2026-10-29 14:23:48.223221256 +0000
++++ b/engine/tests/test_c7_c6_p.py	2026-10-30 11:15:07.685215486 +0000
+@@ -70,12 +70,9 @@
+ 
+ class _Probe:
+     def __init__(self, lo, hi): self.lo, self.hi = lo, hi
+-class _Gap:
+-    def __init__(self, h): self.h = h
+-    def nonnegative(self): return I(0, self.h)
+ class _Clock:
+-    def __init__(self, h): self.h = h
+-    def minus(self, other): return _Gap(self.h)
++    def __init__(self, at): self.at = I(at)
++    def minus(self, other): return self.at - other.at
+ class _Stub:
+     """Minimal b for cluster_memory_cover: charge(u) is a monotone formula
+     evaluated exactly at the ends of each time piece."""
+@@ -83,7 +80,9 @@
+     def __init__(self, charge):
+         self.charge = charge
+         self.dep = self
+-    def shift(self, t, u, key): return _Probe(u.lo, u.hi)
++    def shift(self, t, u, key):
++        at = t.at + u
++        return _Probe(at.lo, at.hi)
+     def evaluate(self, memory, probe):
+         # Like an interval evaluation: exact extremes plus an overestimate
+         # proportional to the width of the time piece.
+@@ -95,7 +94,7 @@
+ 
+ class LemmaC6(unittest.TestCase):
+     def certify(self, charge, H=D(1), s=None):
+-        s = s or dict(p=0, memory=object(), t=None)
++        s = s or dict(p=0, memory=object(), t=_Clock(0))
+         return cluster_memory_cover.certify(_Stub(charge), s, _Clock(H))
+ 
+     def test_below_threshold_accepted(self):
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/tests/test_charge_join.py b/engine/tests/test_charge_join.py
+--- a/engine/tests/test_charge_join.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/tests/test_charge_join.py	2026-10-30 11:15:07.685338640 +0000
+@@ -0,0 +1,121 @@
++"""Union preservation, threshold neutrality, and learning-history regression."""
++from pathlib import Path
++import os, sys, unittest
++from types import SimpleNamespace
++from decimal import Decimal as D
++ROOT=Path(__file__).resolve().parents[1]
++sys.path.insert(0,str(ROOT/'affine'))
++os.environ.setdefault('A22_ARTIFACT_DIR',str(ROOT/'test_diagnostics'))
++import engine, affine_iv as af, temporal, charge_join
++I=af.I
++
++
++class ChargeJoin(unittest.TestCase):
++    def setUp(self):
++        self.fresh=af.FRESH
++        af.FRESH=None
++        temporal.begin_producer('charge-join-tests')
++        engine.settings_cell('charge-join-tests')
++        self.now=temporal.Time('join-clock',I(3))
++
++    def tearDown(self):
++        af.FRESH=self.fresh
++
++    def adapter(self):
++        def original(states,context):
++            return dict(states[0],q=af.hull([s['q'] for s in states]),
++                        histories=tuple(s['history'] for s in states))
++        b=SimpleNamespace(I=I,join_states=original,
++                          PROFILE=SimpleNamespace(relative_order_proofs=[]))
++        charge_join.install(b)
++        return b
++
++    def states(self,values):
++        return [dict(t=self.now,q=q,history=object()) for q in values]
++
++    def test_entire_union_is_kept_both_remainder_modes(self):
++        for fresh in (None,'charge-join-remainders'):
++            af.FRESH=fresh
++            b=self.adapter()
++            values=[I('.8')+I.symbol('a','.1'),I('.8')+I.symbol('b','.1')]
++            states=self.states(values)
++            original=af.hull(values)
++            self.assertGreaterEqual(original.hi,D(1))
++            result=b.join_states(states,{'kind':'test'})
++            self.assertLess(result['q'].hi,D(1))
++            self.assertEqual(result['q'].lo,min(x.lo for x in values))
++            self.assertEqual(result['q'].hi,max(x.hi for x in values))
++            self.assertEqual(result['histories'],tuple(s['history'] for s in states))
++            self.assertTrue(all(s['q'] is q for s,q in zip(states,values)))
++            self.assertEqual(len(b.PROFILE.relative_order_proofs),1)
++
++    def test_real_threshold_overlap_is_not_removed(self):
++        b=self.adapter()
++        values=[I('.8')+I.symbol('a','.1'),I('1.2')+I.symbol('b','.1')]
++        out=b.join_states(self.states(values),{})
++        self.assertGreater(out['q'].hi,D('1.3'))
++        self.assertLessEqual(out['q'].lo,min(q.lo for q in values))
++
++    def test_negative_values_are_not_projected_to_a_physical_guess(self):
++        b=self.adapter()
++        values=[I('-.8')+I.symbol('a','.1'),I('-.8')+I.symbol('b','.1')]
++        out=b.join_states(self.states(values),{})
++        self.assertLess(out['q'].hi,0)
++        self.assertEqual(out['q'].lo,min(q.lo for q in values))
++
++    def test_unchanged_affine_union_retains_shared_dependence(self):
++        b=self.adapter();q=I('.8')+I.symbol('shared','.1')
++        out=b.join_states(self.states([q,q]),{})
++        self.assertIs(out['q'],q)
++        self.assertIn('shared',out['q'].d)
++        self.assertEqual(b.PROFILE.relative_order_proofs,[])
++
++    def test_real_join_preserves_both_learning_and_actuation_histories(self):
++        b=engine.b;profile=b.PROFILE;b.PROFILE=None
++        try:
++            histories=[b.ac.History(I('.08')),b.ac.History(I('.09'))]
++            deposits=[tuple((b.dz.History(I(z).ln()),) for z in zs)
++                      for zs in [('.3','1.2','.3'),('.4','1.3','.4')]]
++            states=[dict(t=self.now,p=0,q=I('.8')+I.symbol(key,'.1'),
++                         actuation=(h,),depot=d,memory=None)
++                    for key,h,d in zip(('a','b'),histories,deposits)]
++            before=[s['q'].fingerprint() for s in states]
++            out=b.join_states(states,{'kind':'learning-regression'})
++            self.assertLess(out['q'].hi,1)
++            self.assertEqual(set(map(id,out['actuation'])),set(map(id,histories)))
++            for j in range(3):
++                self.assertEqual(set(map(id,out['depot'][j])),
++                                 {id(d[j][0]) for d in deposits})
++            self.assertIsNone(out['memory'])
++            self.assertEqual(before,[s['q'].fingerprint() for s in states])
++        finally:
++            b.PROFILE=profile
++
++    def test_empty_ready_memory_restores_residual_instead_of_resetting_to_rest(self):
++        b=self.adapter();b.dep=engine.b.dep
++        q=I('.2')+I.symbol('residual','.01')
++        states=self.states([q,q])
++        for s in states:s.update(p=0,memory=None,raw=[None]*3)
++        out=b.join_states(states,{})
++        self.assertIs(out['memory']['q'],q)
++        self.assertIs(out['memory']['anchor'],self.now)
++        self.assertEqual(out['memory']['pulses'],{})
++        at=self.now.plus(2)
++        expected=engine.b.R+(q-engine.b.R)*(-engine.b.K*I(2)).exp()
++        actual=b.dep.evaluate(out['memory'],at)
++        self.assertLess((actual-expected).width(),D('1e-12'))
++        self.assertGreater(actual.lo,engine.b.R.hi)
++        # The input states and their disjunction were not overwritten.
++        self.assertTrue(all(s['memory'] is None for s in states))
++
++    def test_memory_repair_does_not_assume_empty_or_ready_or_replace_existing_memory(self):
++        b=self.adapter();b.dep=engine.b.dep
++        for phase,raw,memory in [(1,[None]*3,None),(0,[self.now,None,None],None),
++                                 (0,[None]*3,{'existing':'memory'})]:
++            states=self.states([I('.2')])
++            states[0].update(p=phase,raw=raw,memory=memory)
++            out=b.join_states(states,{})
++            self.assertIs(out['memory'],memory)
++
++
++if __name__=='__main__':unittest.main()
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/tests/test_e2_prefix.py b/engine/tests/test_e2_prefix.py
+--- a/engine/tests/test_e2_prefix.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/tests/test_e2_prefix.py	2026-10-30 11:15:07.684854269 +0000
+@@ -0,0 +1,58 @@
++"""Set-cover regressions for event-relative E2 ordering; no sampling acceptance."""
++import os,sys,unittest
++from pathlib import Path
++from decimal import Decimal as D
++ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'affine'))
++os.environ.setdefault('A22_ARTIFACT_DIR',str(ROOT/'test_diagnostics'))
++import engine,commutation,temporal,affine_iv
++I=engine.I
++
++class PrefixCover(unittest.TestCase):
++    def test_strict_cover_is_complete(self):
++        cert=[]
++        def f(x):return I('-.01')+I(0,(I(x.width())/10).hi)
++        self.assertTrue(commutation._strict_prefix(f,certificate=cert))
++        self.assertEqual(D(cert[0][0]),0);self.assertEqual(D(cert[-1][1]),1)
++        self.assertTrue(all(D(x[2])<0 for x in cert))
++        self.assertTrue(all(a[1]==b[0] for a,b in zip(cert,cert[1:])))
++    def test_equality_is_not_discarded(self):
++        self.assertFalse(commutation._strict_prefix(lambda x:I(0)))
++    def test_hidden_crossing_with_safe_endpoints(self):
++        def f(x):return I('.1')-(x-I('.5'))*(x-I('.5'))
++        self.assertLess(f(I(0)).hi,0);self.assertLess(f(I(1)).hi,0)
++        self.assertFalse(commutation._strict_prefix(f))
++    def test_budget_failure_exports_no_partial_certificate(self):
++        cert=[]
++        self.assertFalse(commutation._strict_prefix(lambda x:I(-1,1),depth=0,certificate=cert))
++        self.assertEqual(cert,[])
++    def test_actual_early_fire_is_not_ruled_out(self):
++        self.assertFalse(commutation._strict_prefix(lambda lam:I('.8')-lam))
++
++class ArrivalClock(unittest.TestCase):
++    def setUp(self):
++        temporal.begin_producer('e2-prefix-test');affine_iv.FRESH=None
++        engine.settings_cell('e2-prefix-test');engine.b.PROFILE=None
++    def state(self):
++        b=engine.b;t=temporal.Time('now',I(0));g=[I('.3').ln(),I('2.2').ln(),I('.3').ln()]
++        s=dict(t=t,q=b.R,z=g,b=I('.08'),p=0,raw=[None]*3,aux=[0]*3,mark=[None]*3,err=[None]*3,caps=[False]*3,bstop=False,fire=None)
++        s['memory']=b.new_memory(s);s['actuation']=(b.ac.History(s['b']),)
++        s['depot']=tuple((b.dz.History(z),) for z in g)
++        return s
++    def test_wide_absolute_fire_does_not_imply_mark_overlap(self):
++        b=engine.b;s=self.state()
++        early=temporal.Time('weak-input',I('.01','.04'))
++        center=temporal.Time('strong-input',I('.04','.48'))
++        mon=b.shift(center,b.D0_PORTS[1],'mark-on');off=b.shift(mon,b.DM_PORTS[1],'mark-off')
++        group=[(early,[('raw_on',0,early),('raw_on',2,early)]),(center,[('raw_on',1,center)]),
++               (mon,[('mark_on',1,mon)]),(off,[('mark_off',1,mon)])]
++        before=set();rho=commutation._arrival_fire_root(b,s,group,D(1),'synthetic',0,before=before)
++        self.assertIsNotNone(rho);self.assertGreater(rho.width(),D('.3'))
++        self.assertIn(mon.token(),before);self.assertIn(off.token(),before)
++        fire=b.shift(s['t'],rho,'synthetic-fire')
++        self.assertLess(off.minus(fire).lo,0);self.assertGreater(off.minus(fire).hi,0)
++    def test_ready_error_keeps_original_refusal(self):
++        b=engine.b;s=self.state();s['aux'][1]=3
++        origin=temporal.Time('input',I('.04','.48'));before=set()
++        self.assertIsNone(commutation._arrival_fire_root(b,s,[(origin,[('raw_on',1,origin)])],D(1),'reject',0,before=before))
++        self.assertEqual(before,set())
++if __name__=='__main__':unittest.main()
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/tests/test_fast_window_retry.py b/engine/tests/test_fast_window_retry.py
+--- a/engine/tests/test_fast_window_retry.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/tests/test_fast_window_retry.py	2026-10-30 11:15:07.683874790 +0000
+@@ -0,0 +1,90 @@
++"""A tighter root may resolve a fast-window refusal; it may not waive it."""
++import os, sys, unittest
++from pathlib import Path
++from decimal import Decimal as D
++from unittest.mock import patch
++ROOT=Path(__file__).resolve().parents[1]
++sys.path.insert(0,str(ROOT/'affine'))
++os.environ.setdefault('A22_ARTIFACT_DIR',str(ROOT/'test_diagnostics'))
++import engine, affine_iv as af, temporal, commutation
++I=af.I
++
++
++class FastWindowRetry(unittest.TestCase):
++    def setUp(self):
++        self.old_fresh=af.FRESH;self.old_profile=engine.b.PROFILE
++        af.FRESH=None;engine.b.PROFILE=None
++        temporal.begin_producer('fast-window-tests')
++        engine.settings_cell('fast-window-tests')
++
++    def tearDown(self):
++        af.FRESH=self.old_fresh;engine.b.PROFILE=self.old_profile
++
++    def recovery_events(self):
++        b=engine.b;o=temporal.Time('arrival',I(0));now=o.plus('.2')
++        memory=b.dep.add(b.dep.start(o,b.R,[]),0,o,I('1.8'))
++        state=dict(t=now,p=0,q=b.dep.evaluate(memory,now),memory=memory,
++                   z=[I(g).ln() for g in ('1.8','.3','.3')],caps=[False]*3,
++                   raw=[o,None,None],aux=[2,0,0],err=[None]*3,
++                   mark=[o.plus('.02'),None,None],bstop=False,b=I('.08'),fire=None)
++        state['actuation']=(b.ac.History(state['b']),)
++        state['depot']=tuple((b.dz.History(z),) for z in state['z'])
++        err=o.plus('1.1')
++        group=[(o.plus(1),[('raw_off',0,o)]),
++               (err,[('error_on',0,err)]),
++               (o.plus('1.25'),[('error_off',0,err)])]
++        return state,group
++
++    def resolve_with_roots(self,coarse,tight):
++        state,group=self.recovery_events();calls=[]
++        def root(*args,**kwargs):
++            use_tight=kwargs.get('tight',False);calls.append(use_tight)
++            return (tight if use_tight else coarse),lambda u:I(1)
++        with patch.object(commutation,'_fire_root',side_effect=root):
++            result=commutation._resolve(engine.b,state,group,D(2),'retry-test',0)
++        return result,calls,group
++
++    def test_retry_retains_original_strict_fast_section_check(self):
++        # The true one-pulse crossing is near .665; both enclosures contain
++        # it, but the first one cannot certify completion of the event group.
++        result,calls,group=self.resolve_with_roots(I(0,'.8'),I('.45','.48'))
++        self.assertIsNotNone(result);self.assertEqual(calls,[False,True])
++        joined,fire,_=result
++        self.assertGreater(fire.plus(1).box().lo,max(t.box().hi for t,_ in group))
++        self.assertEqual(joined['p'],1)
++        self.assertEqual(joined['aux'],[0,0,0])
++
++    def test_retry_still_refuses_a_window_without_strict_margin(self):
++        result,calls,_=self.resolve_with_roots(I(0,'.8'),I(0,'.8'))
++        self.assertIsNone(result);self.assertEqual(calls,[False,True])
++
++    def test_already_accepted_window_does_not_enter_retry(self):
++        result,calls,_=self.resolve_with_roots(I('.45','.48'),I(0,'.8'))
++        self.assertIsNotNone(result);self.assertEqual(calls,[False])
++
++    def test_real_pulse_intersection_tightens_first_crossing(self):
++        b=engine.b;T=temporal.Time
++        origins=[T('left',I('-.146807')+I.symbol('left-clock','.106686')),
++                 T('center',I('-.47320421','-.08331163')),
++                 T('right',I('-.146818')+I.symbol('right-clock','.106694'))]
++        gains=[I('.3'),I('1.2'),I('.3')];now=T('now',I(0))
++        mem=b.dep.start(T('anchor',I(-4)),b.R,[])
++        for j,o in enumerate(origins):mem=b.dep.add(mem,j,o,gains[j])
++        state=dict(p=0,t=now,q=b.dep.evaluate(mem,now),memory=mem,
++                   z=[g.ln() for g in gains],caps=[False]*3,raw=origins,
++                   aux=[2]*3,err=[None]*3,mark=[None]*3,bstop=False)
++        coarse,_=commutation._fire_root(b,state,D('.999999999'),'pulse-test',0)
++        tight,_=commutation._fire_root(b,state,D('.999999999'),'pulse-test',0,tight=True)
++        self.assertGreater(tight.lo,coarse.lo)
++        self.assertLess(tight.hi,coarse.hi)
++        # Endpoint devices are independent checks, not the acceptance rule.
++        for mask in range(8):
++            selected=[o.box().hi if mask&(1<<j) else o.box().lo for j,o in enumerate(origins)]
++            def charge(at):
++                return b.R+sum((g*b.dep.pulse(I(at-t)) for g,t in zip(gains,selected)),I(0))
++            self.assertLess(charge(tight.lo).hi,1)
++            self.assertGreater(charge(tight.hi).lo,1)
++        self.assertIsNone(commutation._fire_root(b,state,D('.1'),'too-short',0,tight=True))
++
++
++if __name__=='__main__':unittest.main()
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/tests/test_gain_range.py b/engine/tests/test_gain_range.py
+--- a/engine/tests/test_gain_range.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/tests/test_gain_range.py	2026-10-30 11:15:07.683381890 +0000
+@@ -0,0 +1,148 @@
++"""Local admission gain bounds preserve learning state and global correlations."""
++import os
++import sys
++import unittest
++from decimal import Decimal as D, localcontext
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[1]
++sys.path.insert(0, str(ROOT / 'affine'))
++os.environ.setdefault('A22_ARTIFACT_DIR', str(ROOT / 'test_diagnostics'))
++import engine
++import affine_iv
++import artifacts
++import gain_range
++import temporal
++
++I = engine.I
++
++
++class AdmissionGainRange(unittest.TestCase):
++    def setUp(self):
++        self.old_fresh = affine_iv.FRESH
++        self.old_profile = engine.b.PROFILE
++        affine_iv.FRESH = None
++        temporal.begin_producer('gain-range-test')
++        engine.settings_cell('gain-range-test')
++        engine.b.PROFILE = None
++
++    def tearDown(self):
++        affine_iv.FRESH = self.old_fresh
++        engine.b.PROFILE = self.old_profile
++
++    def wide_log_gain(self):
++        return I('.1823615567939546262', '.5377610122466839') + I.symbol('learning-log-gain', '.00005')
++
++    def state(self):
++        b = engine.b
++        origin = temporal.Time('older-arrival', I(0))
++        now = origin.plus('.2')
++        z = [I('.3').ln(), self.wide_log_gain(), I('.3').ln()]
++        memory = b.dep.add(b.dep.start(origin, b.R, []), 0, origin, I('.3'))
++        s = dict(t=now, q=b.dep.evaluate(memory, now), z=z, b=I('.08'),
++                 p=0, raw=[origin, None, None], aux=[2, 0, 0],
++                 mark=[origin.plus('.02'), None, None], err=[None]*3,
++                 caps=[False]*3, bstop=False, fire=None, memory=memory)
++        s['actuation'] = (b.ac.History(s['b']),)
++        s['depot'] = tuple((b.dz.History(value),) for value in z)
++        return s
++
++    def test_wide_exp_tightening_contains_exact_monotone_range_both_modes(self):
++        for fresh in (None, 'gain-bound-remainder'):
++            with self.subTest(fresh=fresh):
++                affine_iv.FRESH = fresh
++                z = self.wide_log_gain()
++                old = z.exp()
++                bound = gain_range.enclose(old, z)
++                self.assertGreater(bound.lo, old.lo)
++                self.assertLess(bound.hi, old.hi)
++                scalar = z.plain().exp()
++                self.assertGreaterEqual(bound.lo, scalar.lo)
++                self.assertLessEqual(bound.hi, scalar.hi)
++                with localcontext() as ctx:
++                    ctx.prec = 400
++                    low_truth, high_truth = z.lo.exp(), z.hi.exp()
++                self.assertLessEqual(bound.lo, low_truth)
++                self.assertGreaterEqual(bound.hi, high_truth)
++
++    def test_admission_preserves_old_state_memory_and_pulses_both_modes(self):
++        b = engine.b
++        for fresh in (None, 'admission-remainder'):
++            with self.subTest(fresh=fresh):
++                affine_iv.FRESH = fresh
++                s = self.state()
++                before = artifacts.canonical_hash(artifacts.Encoder().encode(s))
++                old_memory = s['memory']
++                old_key, old_term = next(iter(old_memory['pulses'].items()))
++                old_z, old_depot = s['z'], s['depot']
++                incoming = s['t']
++                out = b.act(s, [('raw_on', 1, incoming)])
++                new = out['memory']['pulses'][(1, incoming.token())]['g']
++                self.assertEqual(before, artifacts.canonical_hash(artifacts.Encoder().encode(s)))
++                self.assertIs(s['memory'], old_memory)
++                self.assertIs(s['z'], old_z)
++                self.assertIs(s['depot'], old_depot)
++                self.assertIs(out['memory']['pulses'][old_key], old_term)
++                self.assertNotIn((1, incoming.token()), old_memory['pulses'])
++                self.assertGreaterEqual(new.lo, s['z'][1].plain().exp().lo)
++                self.assertLessEqual(new.hi, s['z'][1].plain().exp().hi)
++
++    def test_capped_gain_is_left_as_physical_cap(self):
++        b = engine.b
++        s = self.state()
++        s['caps'][1] = True
++        s['z'][1] = b.Z
++        s['depot'] = tuple((b.dz.History(b.Z, clamped=True),) if j == 1 else hs
++                           for j, hs in enumerate(s['depot']))
++        origin = s['t']
++        out = b.act(s, [('raw_on', 1, origin)])
++        self.assertIs(out['memory']['pulses'][(1, origin.token())]['g'], b.C)
++        self.assertIs(b.new_memory(out)['pulses'][(1, origin.token())]['g'], b.C)
++
++    def test_protected_arrival_does_not_admit_a_pulse(self):
++        b = engine.b
++        s = self.state()
++        s.update(p=1, memory=None, fire=s['t'])
++        incoming = s['t']
++        out = b.act(s, [('raw_on', 1, incoming)])
++        self.assertIsNone(out['memory'])
++        self.assertEqual(out['raw'][1].token(), incoming.token())
++        self.assertEqual(out['p'], 1)
++
++    def test_tail_reconstruction_uses_current_log_gain_without_mutation(self):
++        b = engine.b
++        s = self.state()
++        s['raw'][1] = s['t'].plus('-.1')
++        before = artifacts.canonical_hash(artifacts.Encoder().encode(s))
++        memory = b.new_memory(s)
++        term = memory['pulses'][(1, s['raw'][1].token())]
++        self.assertTrue(term['tail'])
++        self.assertEqual(memory['anchor'].token(), s['t'].token())
++        scalar = s['z'][1].plain().exp()
++        self.assertGreaterEqual(term['g'].lo, scalar.lo)
++        self.assertLessEqual(term['g'].hi, scalar.hi)
++        self.assertEqual(before, artifacts.canonical_hash(artifacts.Encoder().encode(s)))
++
++    def test_global_exponential_keeps_affine_dependence_both_modes(self):
++        for fresh in (None, 'ordinary-exp-remainder'):
++            with self.subTest(fresh=fresh):
++                affine_iv.FRESH = fresh
++                x = I.symbol('small-input', '.01')
++                value = x.exp()
++                self.assertIn('small-input', value.d)
++                self.assertLess((value-(1+x)).width(), D('.0003'))
++                self.assertIs(gain_range.enclose(value, x), value)
++
++    def test_routine_narrow_gain_keeps_original_correlated_form(self):
++        for fresh in (None, 'narrow-admission-remainder'):
++            for radius in ('1e-5', '.001', '.01'):
++                with self.subTest(fresh=fresh, radius=radius):
++                    affine_iv.FRESH = fresh
++                    z = I('1.2').ln()+I.symbol('narrow-log-gain', radius)
++                    original = z.exp()
++                    self.assertIs(gain_range.enclose(original, z), original)
++                    self.assertIn('narrow-log-gain', original.d)
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/tests/test_ready_first_crossing.py b/engine/tests/test_ready_first_crossing.py
+--- a/engine/tests/test_ready_first_crossing.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/tests/test_ready_first_crossing.py	2026-10-30 11:15:07.684678365 +0000
+@@ -0,0 +1,330 @@
++"""Strict first-crossing regressions; exact interval arguments, no sampling."""
++import os
++import sys
++import unittest
++from decimal import Decimal as D
++from pathlib import Path
++from types import SimpleNamespace
++
++ROOT = Path(__file__).resolve().parents[1]
++sys.path.insert(0, str(ROOT / 'affine'))
++os.environ.setdefault('A22_ARTIFACT_DIR', str(ROOT / 'test_diagnostics'))
++import engine
++import affine_iv
++import commutation
++import cluster_memory_cover
++import nofire_cover
++import temporal
++
++I = engine.I
++
++
++class ReadyFirstCrossing(unittest.TestCase):
++    def setUp(self):
++        temporal.begin_producer('ready-first-crossing-test')
++        affine_iv.FRESH = None
++        engine.settings_cell('ready-first-crossing-test')
++        engine.b.PROFILE = None
++
++    def synthetic(self, margin, clock=None, derivative=None):
++        """Continuous counterfactual charge with an exact shared time origin."""
++        clock = clock or temporal.Time('origin', I(0))
++        # A deliberately uninformative but valid slope enclosure for the
++        # small polynomial examples preserves the slope-free test route.
++        derivative = derivative or (lambda x: I(-10, 10))
++        b = SimpleNamespace(
++            I=I, D=D, shift=temporal.shift, v=engine.b.v,
++            PROFILE=SimpleNamespace(relative_order_proofs=[]),
++            dep=SimpleNamespace(evaluate=lambda memory, t, deriv=False:
++                                derivative(t.minus(clock)) if deriv else 1 + margin(t.minus(clock))))
++        return b, dict(p=0, t=clock, memory={}), clock.plus(1)
++
++    def test_shared_uncertain_clock_keeps_relative_first_fire(self):
++        b = engine.b
++        origin = temporal.Time('wide-arrival', I(10, 11))
++        memory = b.dep.start(origin, b.R, [])
++        memory = b.dep.add(memory, 0, origin, I('1.8'))
++        state = dict(p=0, t=origin.plus('.2'), memory=memory)
++        boundary = origin.plus(1)
++        fire = nofire_cover.first_fire(b, state, boundary, 'shared', 0)
++        self.assertIsNotNone(fire)
++        age = fire.minus(origin)
++        self.assertLess(age.width(), D('.002'))
++        self.assertLess(age.hi, 1)
++        self.assertGreater(age.lo, D('.2'))
++        # Absolute date boxes overlap widely, yet the actual order is strict.
++        self.assertGreater(fire.box().hi, boundary.box().lo)
++        self.assertLess(fire.minus(boundary).hi, 0)
++        self.assertLessEqual((b.R + I('1.8') * b.dep.pulse(I(age.lo))).lo, 1)
++        self.assertGreaterEqual((b.R + I('1.8') * b.dep.pulse(I(age.hi))).hi, 1)
++
++    def test_certain_fire_survives_unusable_legacy_peak_bracket(self):
++        b = engine.b
++        anchor = temporal.Time('anchor', I(-1))
++        now = temporal.Time('now', I('.234'))
++        boundary = temporal.Time('boundary', I(1))
++        origins = [temporal.Time('left', I('.076', '.194')),
++                   temporal.Time('center', I(0, '.19')),
++                   temporal.Time('right', I('.076', '.194'))]
++        gains = [I('.3'), I('1.2'), I('.3')]
++        memory = b.dep.start(anchor, b.R, [])
++        for j, origin in enumerate(origins):
++            memory = b.dep.add(memory, j, origin, gains[j])
++        # These deliberately coarse rectangular bounds include the exact
++        # memory charge/current, but lose their common parameter dependence.
++        q, current = I('.1', '.9'), I('1.2', '2.4')
++        exact_q = b.dep.evaluate(memory, now)
++        exact_current = sum((gains[j] * b.A * (-b.A * now.minus(o)).exp()
++                             for j, o in enumerate(origins)), I(0))
++        self.assertLessEqual(q.lo, exact_q.lo)
++        self.assertGreaterEqual(q.hi, exact_q.hi)
++        self.assertLessEqual(current.lo, exact_current.lo)
++        self.assertGreaterEqual(current.hi, exact_current.hi)
++        bb = current / (b.A - b.K)
++        peak = (b.A * bb / (b.K * (q - b.R + bb))).ln() / (b.A - b.K)
++        legacy_hi = min(boundary.minus(now).hi, peak.lo)
++        self.assertLess(b.dep.evaluate(memory, b.shift(now, I(legacy_hi), 'peak')).lo, 1)
++        self.assertGreater(b.dep.evaluate(memory, boundary).lo, 1)
++        fire = nofire_cover.first_fire(b, dict(p=0, t=now, memory=memory), boundary, 'peak', 0)
++        self.assertIsNotNone(fire)
++        # Strict physical order comes from the positive boundary margin;
++        # an outward root box is allowed to touch the boundary.
++        self.assertLessEqual(fire.box().hi, boundary.box().lo)
++
++    def test_strict_start_uses_scalar_pulse_bound_when_affine_overshoots(self):
++        b = engine.b
++        origin = temporal.Time('pulse-origin', I(0))
++        memory = b.dep.add(b.dep.start(origin, b.R, []), 0, origin, I('1.8'))
++        start = b.shift(origin, I('.3')+I.symbol('uncertain-start-age', '.29'), 'start')
++        boundary = origin.plus(1)
++        state = dict(p=0, t=start, memory=memory)
++        self.assertGreater(b.dep.evaluate(memory, start).hi, 1)
++        self.assertLess(cluster_memory_cover.charge_bound(b, memory, start).hi, 1)
++        self.assertGreater(cluster_memory_cover.charge_bound(b, memory, boundary).lo, 1)
++        profile = SimpleNamespace(relative_order_proofs=[])
++        b.PROFILE = profile
++        try:
++            fire = nofire_cover.first_fire(b, state, boundary, 'tight-start', 0)
++        finally:
++            b.PROFILE = None
++        self.assertIsNotNone(fire)
++        proof = profile.relative_order_proofs[-1]
++        self.assertLess(D(proof['start_margin'][1]), 0)
++        self.assertGreater(D(proof['boundary_margin'][0]), 0)
++        # The fixed physical pulse has its first crossing between .66 and
++        # .67; uncertainty concerns only when this READY state is observed.
++        self.assertLess((b.R+I('1.8')*b.dep.pulse(I('.66'))).hi, 1)
++        self.assertGreater((b.R+I('1.8')*b.dep.pulse(I('.67'))).lo, 1)
++        self.assertLess(fire.box().lo, D('.67'))
++        self.assertGreater(fire.box().hi, D('.66'))
++
++    def test_commutation_reuses_full_horizon_after_peak_bracket_failure(self):
++        b = engine.b
++        anchor = temporal.Time('anchor', I(-1))
++        now = temporal.Time('now', I('.234'))
++        origins = [temporal.Time('left', I('.076', '.194')),
++                   temporal.Time('center', I(0, '.19')),
++                   temporal.Time('right', I('.076', '.194'))]
++        gains = [I('.3'), I('1.2'), I('.3')]
++        memory = b.dep.start(anchor, b.R, [])
++        for j, origin in enumerate(origins):
++            memory = b.dep.add(memory, j, origin, gains[j])
++        state = dict(t=now, q=I('.1', '.9'), p=0, memory=memory,
++                     z=[g.ln() for g in gains], caps=[False]*3,
++                     raw=origins, aux=[2]*3, err=[None]*3,
++                     mark=[None]*3, bstop=False)
++        # Current is computed by the actual engine, not a mocked bound.
++        current, _, _ = b.coefficients(state)
++        bb = current / (b.A-b.K)
++        peak = (b.A*bb / (b.K*(state['q']-b.R+bb))).ln() / (b.A-b.K)
++        margin = lambda u: b.dep.evaluate(memory, b.shift(now, I(u), 'margin'))-1
++        self.assertLess(margin(peak.lo).lo, 0)
++        self.assertGreater(margin(D('.766')).lo, 0)
++        before = commutation.STATS.get('peak_bracket_fallback', 0)
++        result = commutation._fire_root(b, state, D('.766'), 'full-horizon', 0)
++        self.assertIsNotNone(result)
++        self.assertEqual(commutation.STATS['peak_bracket_fallback'], before+1)
++        self.assertGreater(result[0].lo, 0)
++        self.assertLess(result[0].hi, D('.766'))
++        # A possible crossing does not suffice: all parameter points must
++        # have crossed at the full endpoint before this fallback may return.
++        self.assertLess(margin(D('.61')).lo, 0)
++        self.assertGreater(margin(D('.61')).hi, 0)
++        self.assertIsNone(commutation._fire_root(b, state, D('.61'), 'uncertain-horizon', 0))
++        self.assertEqual(commutation.STATS['peak_bracket_fallback'], before+1)
++
++    def test_nonmonotone_flow_returns_first_of_three_crossings(self):
++        b, s, boundary = self.synthetic(
++            lambda x: (x-I('.2')) * (x-I('.5')) * (x-I('.8')),
++            derivative=lambda x: 3*x*x-3*x+I('.66'))
++        fire = nofire_cover.first_fire(b, s, boundary, 'nonmonotone', 0)
++        self.assertIsNotNone(fire)
++        self.assertLessEqual(fire.box().lo, D('.2'))
++        self.assertGreaterEqual(fire.box().hi, D('.2'))
++        self.assertLess(fire.box().hi, D('.21'))
++        self.assertEqual(b.PROFILE.relative_order_proofs[-1]['route'], 'slope_free_cover')
++
++    def test_e_route_prunes_arrival_certainly_after_first_fire(self):
++        b = engine.b
++        origin = temporal.Time('admitted-origin', I(0))
++        now, late = origin.plus('.2'), origin.plus('.9')
++        gains = [I('1.8'), I('.3'), I('.3')]
++        memory = b.dep.start(origin, b.R, [])
++        memory = b.dep.add(memory, 0, origin, gains[0])
++        state = dict(t=now, q=b.dep.evaluate(memory, now), p=0, memory=memory,
++                     z=[g.ln() for g in gains], caps=[False]*3,
++                     raw=[origin, None, None], aux=[2, 0, 0], err=[None]*3,
++                     mark=[origin.plus('.02'), None, None], bstop=False,
++                     b=I('.08'), fire=None)
++        state['actuation'] = (b.ac.History(state['b']),)
++        state['depot'] = tuple((b.dz.History(z),) for z in state['z'])
++        profile = SimpleNamespace(relative_order_proofs=[],
++                                  guard=lambda *args: None, observe=lambda *args: None)
++        b.PROFILE = profile
++        try:
++            result = commutation._resolve(b, state, [(late, [('raw_on', 1, late)])],
++                                          D(1), 'E-position-pruning', 0)
++        finally:
++            b.PROFILE = None
++        self.assertIsNotNone(result)
++        joined, fire, branches = result
++        self.assertEqual(profile.relative_order_proofs[-1]['route'], 'E')
++        self.assertGreater(late.minus(fire).lo, 0)
++        self.assertEqual(branches, 1)
++        self.assertEqual(joined['p'], 1)
++        self.assertEqual(joined['raw'][1].token(), late.token())
++        # The discarded alternative would flow from the late arrival
++        # backwards to the earlier fire and is physically impossible.
++        self.assertLess(fire.minus(late).hi, 0)
++
++    def test_whole_interval_monotonicity_preserves_affine_root(self):
++        crossing = I('.5') + I.symbol('crossing-parameter', '.1')
++        b, s, boundary = self.synthetic(lambda x: x-crossing, derivative=lambda x: I(1))
++        fire = nofire_cover.first_fire(b, s, boundary, 'monotone', 0)
++        self.assertIsNotNone(fire)
++        self.assertEqual(b.PROFILE.relative_order_proofs[-1]['route'], 'monotone_affine_root')
++        # Dependence survives the root calculation, not just its date box.
++        residual = fire.minus(s['t']) - crossing
++        self.assertLess(residual.width(), D('1e-10'))
++        self.assertLessEqual(residual.lo, 0)
++        self.assertGreaterEqual(residual.hi, 0)
++
++    def test_failed_monotone_solver_keeps_slope_free_fallback(self):
++        b, s, boundary = self.synthetic(lambda x: x-I('.5'), derivative=lambda x: I(1))
++        def refuse(*args):
++            raise engine.b.v.Ambiguous('synthetic root solver refusal')
++        b.v = SimpleNamespace(root=refuse, guessroot=lambda *args: .5, Ambiguous=engine.b.v.Ambiguous)
++        fire = nofire_cover.first_fire(b, s, boundary, 'fallback', 0)
++        self.assertIsNotNone(fire)
++        self.assertEqual(b.PROFILE.relative_order_proofs[-1]['route'], 'slope_free_cover')
++        self.assertLessEqual(fire.box().lo, D('.5'))
++        self.assertGreaterEqual(fire.box().hi, D('.5'))
++
++    def test_threshold_equality_at_boundary_is_not_strict_order(self):
++        b, s, boundary = self.synthetic(lambda x: x-1)
++        self.assertIsNone(nofire_cover.first_fire(b, s, boundary, 'equality', 0))
++
++    def test_possible_but_not_certain_endpoint_crossing_refuses(self):
++        b, s, boundary = self.synthetic(lambda x: x-I('.9', '1.1'))
++        self.assertIsNone(nofire_cover.first_fire(b, s, boundary, 'possible', 0))
++
++    def test_tangency_without_positive_endpoint_refuses(self):
++        b, s, boundary = self.synthetic(lambda x: -(x-I('.5'))*(x-I('.5')))
++        self.assertIsNone(nofire_cover.first_fire(b, s, boundary, 'tangent', 0))
++
++    def test_missing_strict_subthreshold_start_refuses(self):
++        b, s, boundary = self.synthetic(lambda x: x)
++        self.assertIsNone(nofire_cover.first_fire(b, s, boundary, 'start-equality', 0))
++
++    def test_nonready_or_missing_memory_refuses(self):
++        b, s, boundary = self.synthetic(lambda x: x-I('.5'))
++        self.assertIsNone(nofire_cover.first_fire(b, dict(s, p=1), boundary, 'protected', 0))
++        self.assertIsNone(nofire_cover.first_fire(b, dict(s, memory=None), boundary, 'no-memory', 0))
++
++    def test_crossing_witness_finds_transient_interior_positive_charge(self):
++        f = lambda x: I('.04') - (x-I('.5'))*(x-I('.5'))
++        self.assertLess(f(I(0)).hi, 0)
++        self.assertLess(f(I(1)).hi, 0)
++        witness = commutation._crossing_witness(f, D(1))
++        self.assertIsNotNone(witness)
++        self.assertGreater(f(I(witness)).lo, 0)
++        root = commutation._first_crossing_cover(f, witness)
++        self.assertIsNotNone(root)
++        self.assertLessEqual(root.lo, D('.3'))
++        self.assertGreaterEqual(root.hi, D('.3'))
++        self.assertLess(root.hi, D('.31'))
++
++    def test_crossing_witness_requires_whole_parameter_box_above(self):
++        amplitude = I('.05') + I.symbol('uncertain-transient-height', '.1')
++        f = lambda x: amplitude - (x-I('.5'))*(x-I('.5'))
++        self.assertLess(f(I('.5')).lo, 0)
++        self.assertGreater(f(I('.5')).hi, 0)
++        self.assertIsNone(commutation._crossing_witness(f, D(1)))
++
++    def test_crossing_witness_refuses_without_witness(self):
++        self.assertIsNone(commutation._crossing_witness(lambda x: I('-.1'), D(1)))
++        self.assertIsNone(commutation._crossing_witness(lambda x: I(1), D(0)))
++
++    def test_finite_grid_missing_a_narrow_peak_does_not_accept(self):
++        # There is a true crossing, but no default dyadic candidate proves
++        # it. Failure must stay undecided, rather than manufacture a bracket.
++        f = lambda x: I('1e-8') - (x-I('.31'))*(x-I('.31'))
++        self.assertGreater(f(I('.31')).lo, 0)
++        self.assertIsNone(commutation._crossing_witness(f, D(1)))
++
++    def install_refusal_hook(self, margin, error):
++        b, s, boundary = self.synthetic(margin, derivative=lambda x: I(1))
++        calls = []
++        def original(*args):
++            raise error
++        def flowing(state, at):
++            calls.append(('flow', at))
++            return dict(state, t=at)
++        def fire_reset(state):
++            calls.append(('reset', state['t']))
++            return dict(state, p=1, memory=None)
++        b.advance = original
++        b.flowing = flowing
++        b.fire_reset = fire_reset
++        b.PROFILE.guard = lambda *args: None
++        nofire_cover.install(SimpleNamespace(b=b, I=I, D=D, iv=engine.iv))
++        return b, s, boundary, calls
++
++    def test_root_bracket_refusal_uses_strict_first_crossing_proof(self):
++        error = engine.b.v.Ambiguous('root bracket failed: 0,1')
++        b, state, boundary, calls = self.install_refusal_hook(lambda x: x-I('.5'), error)
++        result, kind = b.advance(state, boundary, 'hook', 0)
++        self.assertEqual(kind, 'fire')
++        self.assertEqual(result['p'], 1)
++        self.assertEqual(state['p'], 0)
++        self.assertEqual([call[0] for call in calls], ['flow', 'reset'])
++        proof = b.PROFILE.relative_order_proofs[-1]
++        self.assertLess(D(proof['start_margin'][1]), 0)
++        self.assertGreater(D(proof['boundary_margin'][0]), 0)
++        self.assertLessEqual(result['t'].box().lo, D('.5'))
++        self.assertGreaterEqual(result['t'].box().hi, D('.5'))
++
++    def test_root_bracket_refusal_without_strict_crossing_keeps_exception(self):
++        # In particular, a subthreshold interval must not be accepted by
++        # the older no-fire fallback for this distinct root-solver refusal.
++        for threshold in ('.9', '1', '2'):
++            error = engine.b.v.Ambiguous('root bracket failed: preserve this instance')
++            uncertain = I(threshold, '1.1') if threshold == '.9' else I(threshold)
++            b, state, boundary, calls = self.install_refusal_hook(lambda x: x-uncertain, error)
++            with self.assertRaises(engine.b.v.Ambiguous) as raised:
++                b.advance(state, boundary, 'hook-refuse', 0)
++            self.assertIs(raised.exception, error)
++            self.assertEqual(calls, [])
++
++    def test_unrelated_ambiguity_does_not_enter_first_crossing_fallback(self):
++        error = engine.b.v.Ambiguous('unrelated event-order budget refusal')
++        b, state, boundary, calls = self.install_refusal_hook(lambda x: x-I('.5'), error)
++        with self.assertRaises(engine.b.v.Ambiguous) as raised:
++            b.advance(state, boundary, 'unrelated', 0)
++        self.assertIs(raised.exception, error)
++        self.assertEqual(calls, [])
++        self.assertEqual(b.PROFILE.relative_order_proofs, [])
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/tests/test_recovery_no_fire.py b/engine/tests/test_recovery_no_fire.py
+--- a/engine/tests/test_recovery_no_fire.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/tests/test_recovery_no_fire.py	2026-10-30 11:15:07.684415476 +0000
+@@ -0,0 +1,202 @@
++"""Recovery fallback contracts and a small real learning-gate regression."""
++import os
++import sys
++import unittest
++from pathlib import Path
++from types import FunctionType, ModuleType, SimpleNamespace
++from unittest.mock import patch
++
++ROOT = Path(__file__).resolve().parents[1]
++sys.path.insert(0, str(ROOT / 'affine'))
++os.environ.setdefault('A22_ARTIFACT_DIR', str(ROOT / 'test_diagnostics'))
++import engine
++import affine_iv
++import temporal
++import recovery_group
++
++I = engine.I
++
++
++def _resolver_body(state, group, upper, coarse, cell, count):
++    # Bare globals deliberately model A19's helper lookup. The tested wrapper
++    # must bind the cache privately without mutating this function's globals.
++    return PROBE(return_with_marks, state, group, upper, coarse, cell, count)
++
++
++def _resolver_join_body(state, group, upper, coarse, cell, count):
++    return b.join_states(LEAVES, dict(kind='test-union')), len(LEAVES)
++
++
++class RecoveryFallbackContracts(unittest.TestCase):
++    def setUp(self):
++        temporal.begin_producer('recovery-fallback-contracts')
++        affine_iv.FRESH = None
++        self.b = SimpleNamespace(v=engine.b.v, PROFILE=None)
++        self.fire = temporal.Time('fire', I(0))
++        self.late = temporal.Time('return', I(1, 2))
++        self.state = dict(p=2, fire=self.fire, actuation=(object(),))
++        self.joined = dict(p=0, q=I('.1', '.4'), depot=('retained-learning',))
++        self.calls = []
++        self.resolutions = []
++        self.module = ModuleType('branche_retour_A19')
++
++        def original_return(state, key):
++            self.calls.append((state, key))
++            return self.late
++
++        def probe(helper, state, group, upper, coarse, cell, count):
++            self.resolutions.append((group, upper, coarse))
++            return self.joined, 3
++
++        self.module.return_with_marks = original_return
++        self.module.PROBE = probe
++        self.module.resolve = FunctionType(_resolver_body.__code__, self.module.__dict__)
++
++    def event(self, lo, hi, action='error_on', port=0):
++        time = temporal.Time('event', I(lo, hi))
++        return time, [(action, port, time)]
++
++    def invoke(self, pending, state=None):
++        with patch.dict(sys.modules, {'branche_retour_A19': self.module}):
++            return recovery_group.no_fire_group(
++                self.b, self.state if state is None else state, pending, 0, 'cell', 7)
++
++    def test_complete_transitive_group_stops_before_excluded_event(self):
++        pending = [self.event('1.5', '2.5'),
++                   self.event('2.4', '3', 'raw_off'),
++                   self.event('2.9', '3.4', 'error_off'),
++                   self.event('3.5', '3.6', 'raw_on')]
++        result = self.invoke(pending)
++        self.assertIsNotNone(result)
++        self.assertIs(result[0], self.joined)
++        self.assertEqual(result[1:], (3, 4, 3))
++        group, upper, coarse = self.resolutions[0]
++        self.assertEqual(group, pending[:3])
++        self.assertEqual(upper, I('3.4').hi)
++        self.assertIs(coarse, self.late)
++
++    def test_ineligible_event_reached_only_by_expansion_is_not_skipped(self):
++        for action in ('end', 'raw_on', 'mark_on', 'mark_off'):
++            with self.subTest(action=action):
++                self.resolutions.clear()
++                pending = [self.event('1.5', '2.5'), self.event('2.4', '2.6', action)]
++                self.assertIsNone(self.invoke(pending))
++                self.assertEqual(self.resolutions, [])
++
++    def test_empty_queue_does_not_touch_missing_physical_state(self):
++        self.assertIsNone(self.invoke([], state=dict(p=2)))
++        self.assertEqual(self.calls, [])
++
++    def test_cache_requires_both_history_identity_and_fire_identity(self):
++        original_return = self.module.return_with_marks
++        original_globals = self.module.resolve.__globals__
++
++        def probe(helper, state, group, upper, coarse, cell, count):
++            self.assertIs(self.module.return_with_marks, original_return)
++            self.assertIs(original_globals['return_with_marks'], original_return)
++            self.assertIs(helper(state, 'same-state'), self.late)
++            self.assertIs(helper(dict(state, fire=state['fire'].copy()), 'same-clock'), self.late)
++            self.assertEqual(len(self.calls), 1)  # Initial certified return only.
++            helper(dict(state, actuation=(object(),)), 'different-history')
++            helper(dict(state, fire=state['fire'].plus('.1')), 'different-fire')
++            self.assertEqual([key for _, key in self.calls[1:]],
++                             ['different-history', 'different-fire'])
++            return self.joined, 1
++
++        self.module.PROBE = probe
++        self.assertIsNotNone(self.invoke([self.event('1.5', '2.5')]))
++        self.assertIs(self.module.return_with_marks, original_return)
++        self.assertIs(original_globals['return_with_marks'], original_return)
++
++    def test_original_globals_remain_unchanged_after_resolver_refusal(self):
++        original = self.module.return_with_marks
++
++        def refuse(helper, *args):
++            self.assertIs(self.module.return_with_marks, original)
++            raise engine.b.v.Ambiguous('additional fire remains possible')
++
++        self.module.PROBE = refuse
++        self.assertIsNone(self.invoke([self.event('1.5', '2.5')]))
++        self.assertIs(self.module.return_with_marks, original)
++        self.assertIs(self.module.resolve.__globals__['return_with_marks'], original)
++
++    def test_nonready_or_threshold_terminal_state_is_rejected(self):
++        for phase, charge in ((1, I('.2')), (0, I('.1', 1)), (0, I('1.01'))):
++            with self.subTest(phase=phase, charge=charge.pair()):
++                self.joined = dict(p=phase, q=charge)
++                self.assertIsNone(self.invoke([self.event('1.5', '2.5')]))
++
++    def test_affine_union_is_intersected_with_every_leafs_range(self):
++        # Six independent branch remainders: each leaf is below .61, while
++        # the common-generator affine union extends above 1. This reproduces
++        # the mechanism observed in the layer-16 recovery group.
++        leaves = [dict(p=0, q=I('.5') + I.symbol(f'leaf-{j}', '.1')) for j in range(6)]
++        broad = affine_iv.hull([x['q'] for x in leaves])
++        self.assertGreater(broad.hi, 1)
++        self.assertTrue(all(x['q'].hi < 1 for x in leaves))
++        self.b.I = I
++        self.b.PROFILE = SimpleNamespace(relative_order_proofs=[])
++        original_join = lambda states, context: dict(p=0, q=affine_iv.hull([x['q'] for x in states]))
++        self.b.join_states = original_join
++        self.module.b = self.b
++        self.module.LEAVES = leaves
++        self.module.resolve = FunctionType(_resolver_join_body.__code__, self.module.__dict__)
++        result = self.invoke([self.event('1.5', '2.5')])
++        self.assertIsNotNone(result)
++        charge = result[0]['q']
++        self.assertLess(charge.hi, 1)
++        for leaf in leaves:
++            self.assertLessEqual(charge.lo, leaf['q'].lo)
++            self.assertGreaterEqual(charge.hi, leaf['q'].hi)
++        self.assertIs(self.b.join_states, original_join)
++        self.assertIs(self.module.b, self.b)
++        proof = self.b.PROFILE.relative_order_proofs[-1]['charge_joins'][0]
++        self.assertEqual(proof['branches'], len(leaves))
++        self.assertEqual(proof['affine_q'], broad.pair())
++        self.assertEqual(proof['joined_q'], charge.pair())
++        self.assertEqual(proof['leaf_envelope'], charge.pair())
++
++
++class RecoveryLearning(unittest.TestCase):
++    def setUp(self):
++        temporal.begin_producer('recovery-learning')
++        affine_iv.FRESH = None
++        engine.settings_cell('recovery-learning')
++        engine.b.PROFILE = None
++
++    def test_real_error_gate_straddles_return_and_learning_is_retained(self):
++        b = engine.b
++        fire = temporal.Time('fire', I(0))
++        now = temporal.Time('now', I('3.25'))
++        rate = I('.38')
++        ledger = (b.ac.History(rate, fire=fire),)
++        gains = [I('.3').ln(), I('1.2').ln(), I('.3').ln()]
++        state = dict(t=now, q=b.R*b.ac.bounds(ledger, now, 'ell').exp(),
++                     z=gains, b=rate, p=2, raw=[None]*3, aux=[2, 0, 0],
++                     mark=[None]*3, err=[None]*3, caps=[False]*3,
++                     bstop=False, fire=fire, memory=None, actuation=ledger,
++                     depot=tuple((b.dz.History(z),) for z in gains))
++        error_on = temporal.Time('error-on', I('3.3', '3.6'))
++        error_off = b.shift(error_on, b.DE_PORTS[0], 'error-off')
++        pending = [(error_on, [('error_on', 0, error_on)]),
++                   (error_off, [('error_off', 0, error_on)])]
++        result = recovery_group.no_fire_group(b, state, pending, 0, 'learning', 0)
++        self.assertIsNotNone(result)
++        joined, stop, handled, orders = result
++        self.assertEqual((stop, handled), (2, 3))
++        self.assertGreaterEqual(orders, 2)  # ERROR starts on either side of return.
++        self.assertEqual(joined['p'], 0)
++        self.assertLess(joined['q'].hi, 1)
++        self.assertEqual(joined['aux'], [0, 0, 0])
++        # An admissible error start at 3.6 follows the return (~3.4113), so
++        # the complete .6 log-gain deposit must survive the union. The broad
++        # enclosure is allowed to retain the initial value as a lower bound.
++        full_learning = gains[0] + I('.6')
++        self.assertGreater(joined['z'][0].hi, gains[0].hi)
++        self.assertGreaterEqual(joined['z'][0].hi, full_learning.lo)
++        for port in (1, 2):
++            self.assertEqual(joined['z'][port].fingerprint(), gains[port].fingerprint())
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/tests/test_relative_cluster_cover.py b/engine/tests/test_relative_cluster_cover.py
+--- a/engine/tests/test_relative_cluster_cover.py	1970-01-01 00:00:00.000000000 +0000
++++ b/engine/tests/test_relative_cluster_cover.py	2026-10-30 11:15:07.685050637 +0000
+@@ -0,0 +1,124 @@
++"""Event-relative READY no-fire covers preserve the actual end boundary."""
++import os
++import sys
++import unittest
++from decimal import Decimal as D
++from pathlib import Path
++from types import SimpleNamespace
++
++ROOT = Path(__file__).resolve().parents[1]
++sys.path.insert(0, str(ROOT / 'affine'))
++os.environ.setdefault('A22_ARTIFACT_DIR', str(ROOT / 'test_diagnostics'))
++import engine
++import affine_iv
++import cluster_memory_cover
++import temporal
++
++I = engine.I
++
++
++class RelativeClusterCover(unittest.TestCase):
++    def setUp(self):
++        self.old_fresh = affine_iv.FRESH
++        self.old_profile = engine.b.PROFILE
++        affine_iv.FRESH = None
++        temporal.begin_producer('relative-cluster-test')
++        engine.settings_cell('relative-cluster-test')
++        engine.b.PROFILE = None
++
++    def tearDown(self):
++        affine_iv.FRESH = self.old_fresh
++        engine.b.PROFILE = self.old_profile
++
++    def check_uncertain_start(self, fresh):
++        b = engine.b
++        affine_iv.FRESH = 'relative-cluster-remainder' if fresh else None
++        old_count = affine_iv._COUNTER[0]
++        origin = temporal.Time('shared-wide-clock', I(10, 11))
++        start = b.shift(origin, I(0, '.3'), 'uncertain-start')
++        end = origin.plus('.5')
++        memory = b.dep.start(origin, b.R + I.symbol('initial-charge', '1e-5'), [])
++        memory = b.dep.add(memory, 0, origin, I('1.8')+I.symbol('admitted-gain', '.001'))
++        state = dict(p=0, t=start, memory=memory)
++        horizon = end.minus(start).nonnegative().hi
++        overextended = b.shift(start, I(horizon), 'old-forward-end')
++        self.assertGreater(overextended.minus(end).hi, 0)
++        self.assertGreater(b.dep.evaluate(memory, overextended).hi, 1)
++        self.assertLess(b.dep.evaluate(memory, end).hi, 1)
++        profile = SimpleNamespace(relative_order_proofs=[])
++        b.PROFILE = profile
++        self.assertTrue(cluster_memory_cover.certify(b, state, end))
++        proof = profile.relative_order_proofs[-1]
++        self.assertEqual(proof['guard'], 'READY_event_relative_no_fire')
++        cover = proof['cover']
++        self.assertEqual(D(cover[0][0]), 0)
++        self.assertEqual(D(cover[-1][1]), 1)
++        self.assertTrue(all(D(piece[2]) < 0 for piece in cover))
++        self.assertTrue(all(a[1] == z[0] for a, z in zip(cover, cover[1:])))
++        if fresh:
++            self.assertGreater(affine_iv._COUNTER[0], old_count)
++
++    def test_actual_prefix_safe_while_forward_rectangle_crosses(self):
++        self.check_uncertain_start(fresh=False)
++
++    def test_actual_prefix_safe_with_fresh_remainder_symbols(self):
++        self.check_uncertain_start(fresh=True)
++
++    def synthetic(self, charge):
++        origin = temporal.Time('origin', I(0))
++        b = SimpleNamespace(I=I, D=D, shift=temporal.shift, PROFILE=None,
++                            dep=SimpleNamespace(evaluate=lambda memory, t: charge(t.minus(origin))))
++        # Tail memories deliberately retain the original evaluator; this
++        # lets these arbitrary continuous test curves exercise the cover.
++        memory = {'pulses': {'synthetic': {'tail': True}}}
++        return b, dict(p=0, t=origin, memory=memory), origin.plus(1)
++
++    def test_interior_crossing_with_safe_endpoints_refuses(self):
++        charge = lambda x: I('1.1')-(x-I('.5'))*(x-I('.5'))
++        self.assertLess(charge(I(0)).hi, 1)
++        self.assertLess(charge(I(1)).hi, 1)
++        self.assertGreater(charge(I('.5')).lo, 1)
++        b, state, end = self.synthetic(charge)
++        self.assertFalse(cluster_memory_cover.certify(b, state, end))
++
++    def test_threshold_equality_refuses(self):
++        b, state, end = self.synthetic(lambda x: I('.5')+x/2)
++        self.assertFalse(cluster_memory_cover.certify(b, state, end))
++
++    def test_scalar_pulse_envelope_tightens_only_guard_bound(self):
++        b = engine.b
++        origin = temporal.Time('origin', I(0))
++        gain = I('1.3')
++        memory = b.dep.add(b.dep.start(origin, b.R, []), 0, origin, gain)
++        probe = temporal.Time('wide-pulse-age', I('.5')+I.symbol('age', '.4'))
++        affine = b.dep.evaluate(memory, probe)
++        self.assertGreater(affine.hi, 1)
++        bound = cluster_memory_cover.charge_bound(b, memory, probe)
++        self.assertLess(bound.hi, 1)
++        self.assertLess(bound.width(), affine.width())
++        self.assertGreaterEqual(bound.lo, affine.lo)
++        self.assertLessEqual(bound.hi, affine.hi)
++        # The scalar response is increasing on this entire age interval.
++        # Check its endpoint enclosures and interior values as regressions;
++        # acceptance itself uses the full interval, never these test points.
++        for age in ('.1', '.3', '.5', '.7', '.9'):
++            value = b.R+gain*b.dep.pulse(I(age))
++            self.assertLessEqual(bound.lo, value.lo)
++            self.assertGreaterEqual(bound.hi, value.hi)
++        self.assertIs(memory['pulses'][(0, origin.token())]['g'], gain)
++        self.assertGreater(b.dep.evaluate(memory, probe).hi, 1)
++
++    def test_tail_memory_keeps_original_affine_evaluator(self):
++        b = engine.b
++        origin = temporal.Time('origin', I(0))
++        anchor = origin.plus('.2')
++        memory = b.dep.start(anchor, b.R, [(0, origin, I('1.3'))])
++        probe = b.shift(anchor, I('.1')+I.symbol('tail-age', '.02'), 'tail-probe')
++        self.assertTrue(next(iter(memory['pulses'].values()))['tail'])
++        original = b.dep.evaluate(memory, probe)
++        bound = cluster_memory_cover.charge_bound(b, memory, probe)
++        self.assertEqual(bound.fingerprint(), original.fingerprint())
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/tests/test_v33_ports.py b/engine/tests/test_v33_ports.py
+--- a/engine/tests/test_v33_ports.py	2026-10-29 14:23:48.223604515 +0000
++++ b/engine/tests/test_v33_ports.py	2026-10-30 11:15:07.684728308 +0000
 @@ -109,7 +109,7 @@
              cycle_local_A20.pending_window = saved
  
@@ -394,3 +2143,20 @@ diff -ruN -x __pycache__ -x '*.so' -x .venv -x test_diagnostics -x build.log /ho
  
  
  if __name__ == '__main__':
+diff -ruN -x __pycache__ -x '*.so' -x README.md -x test_diagnostics a/engine/tests/test_v3_fixes.py b/engine/tests/test_v3_fixes.py
+--- a/engine/tests/test_v3_fixes.py	2026-10-29 14:23:48.223604515 +0000
++++ b/engine/tests/test_v3_fixes.py	2026-10-30 11:15:07.685469355 +0000
+@@ -60,10 +60,10 @@
+         self.assertLess(new.width(), D('1e-12'))
+ 
+     def test_truncation_above_kmax_stays_outward(self):
+-        self.assertEqual(af.KMAX, 256)
+-        d = {str(i): 2.0 ** (-(i % 70)) for i in range(400)}
++        self.assertEqual(af.KMAX, 1024)
++        d = {str(i): 2.0 ** (-(i % 70)) for i in range(af.KMAX + 144)}
+         x = I.make(D(0), D(0), d, 0.)
+-        self.assertEqual(len(x.d), 256)
++        self.assertEqual(len(x.d), af.KMAX)
+         self.assertGreaterEqual(F(x.hi), sum(map(F.from_float, d.values()), F(0)))
+ 
+     def test_native_truncation_equals_reference(self):

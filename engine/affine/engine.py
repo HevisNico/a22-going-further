@@ -42,6 +42,8 @@ b.READY_CLUSTER_PEAK = ready_general_A22.peak_upper
 import cluster_memory_cover
 b.READY_MEMORY_COVER = lambda s, tt: cluster_memory_cover.certify(b, s, tt)
 exec(compile(_flow.replace(_peak_old, _peak_new), b.__file__, 'exec'), b.__dict__)
+import gain_range
+gain_range.install(b)
 import avance_causale_A22 as causal
 assert b.I is I and dep.I is I and v.I is I, 'affine class not installed everywhere'
 
@@ -298,6 +300,17 @@ _adv = _adv.replace(_advance_peak_old, _advance_peak_new)
 _old_order = "if not all(tt.box().hi<=x.box().lo for x,_,_ in candidates[1:]):"
 assert _adv.count(_old_order) == 1
 _adv = _adv.replace(_old_order, "if not all(x.minus(tt).lo>=0 for x,_,_ in candidates[1:]):")
+# Fix T: READY fire root in coordinates relative to an admitted pulse
+# (affine/relative_root.py); the original root is kept as the fallback.
+_rel_old = "                else:root=v.root(f,df,D(0),hi,v.guessroot(f,hi))\n"
+assert _adv.count(_rel_old) == 1, 'unexpected advance() root source'
+_adv = _adv.replace(_rel_old, "                else:root=RELATIVE_ROOT(s,memory,f,df,hi,cell,count)\n")
+import relative_root as _relative_root
+# Fix T': recovery return root relative to the latest mark (affine/relative_return.py).
+import branche_retour_A19 as _recovery
+import relative_return as _relative_return
+_relative_return.install(b, _recovery)
+_relative_root.install(b, sys.modules[__name__])
 exec(compile(_adv, b.__file__, 'exec'), b.__dict__)
 
 # ---------------- fix B: sound affine min/max in clip/cap/clamp sites -----
@@ -488,6 +501,11 @@ PORT_SYMBOLS = _port_symbols.install(sys.modules[__name__])
 # Strict subthreshold time-cover fallback; no physical or parameter change.
 import nofire_cover as _nofire_cover
 _nofire_cover.install(sys.modules[__name__])
+
+# Apply the existing leaf-envelope argument to every state charge join,
+# including the successful A20 recovery route and ordinary READY clusters.
+import charge_join as _charge_join
+_charge_join.install(b)
 
 # Fix F: per-history recomputation of a cell (affine/fork.py). Installed last,
 # so the advance wrapper sees the final effective advance and compute_cell.

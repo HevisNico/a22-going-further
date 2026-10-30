@@ -511,3 +511,8 @@ _charge_join.install(b)
 # so the advance wrapper sees the final effective advance and compute_cell.
 import fork as _fork
 _fork.install(b, sys.modules[__name__])
+
+# Fix S: case split of a refused cell on its ports' mark rates (affine/param_split.py).
+# Wraps the fork-aware compute_cell, so each parameter piece may still fork on histories.
+import param_split as _param_split
+_param_split.install(b, sys.modules[__name__], _port_symbols, _fork)

@@ -71,12 +71,17 @@ def install(b, engine):
     engine.compute_cell = compute_cell
 
 
-def merge(b, engine, leaves, layer, lane):
+def merge(b, engine, leaves, layer, lane, kind='history_fork_leaves'):
+    """Union of leaves that each cover a case of the cell (rule 2), merged by hull (rule 3).
+
+    kind names the split: 'history_fork_leaves' (Fix F) or 'parameter_split_leaves' (Fix S).
+    """
     counts = {len(x['outputs']) for x in leaves}
     if len(counts) != 1:
-        raise b.v.Ambiguous(f'history leaves emit different pulse counts {sorted(counts)}')
+        raise b.v.Ambiguous(f'{kind}: leaves emit different pulse counts {sorted(counts)}')
     hull = lambda xs: engine.I(min(x.lo for x in xs), max(x.hi for x in xs))
-    outputs = tuple(engine.temporal.Time(f'{layer},{lane}:fork-out:{k}', hull([x['outputs'][k].box() for x in leaves]))
+    tag = 'fork-out' if kind == 'history_fork_leaves' else 'split-out'
+    outputs = tuple(engine.temporal.Time(f'{layer},{lane}:{tag}:{k}', hull([x['outputs'][k].box() for x in leaves]))
                     for k in range(counts.pop()))
     pair = lambda ps: (min(D(p[0]) for p in ps), max(D(p[1]) for p in ps))
     states = [x['state'] for x in leaves]
@@ -86,9 +91,17 @@ def merge(b, engine, leaves, layer, lane):
     state['m'] = [pair([x['m'][j] for x in states]) for j in range(3)]
     if all('terminal_affine' in x for x in states):
         state['terminal_affine'] = b.join_states([x['terminal_affine'] for x in states],
-                                                 dict(cell=f'{layer},{lane}', kind='history_fork_leaves'))
-    state['history_fork_leaves'] = len(leaves)
+                                                 dict(cell=f'{layer},{lane}', kind=kind))
+    if all('width_profile' in x for x in states):
+        # Every leaf's recorded mechanisms are kept, so the census sees all of them.
+        profile = dict(states[0]['width_profile'])
+        for key in ('relative_order_proofs', 'recovery_branch_groups', 'pruned_recovery_orders'):
+            profile[key] = [p for x in states for p in x['width_profile'].get(key, [])]
+        for key in ('maximum_distinct_actuation_histories', 'maximum_distinct_deposit_histories'):
+            profile[key] = max(x['width_profile'][key] for x in states)
+        state['width_profile'] = profile
+    state[kind] = len(leaves)
     metrics = dict(leaves[0]['metrics'])
-    metrics.update(pulses=len(outputs), history_fork_leaves=len(leaves),
-                   max_width=str(max((t.box().width() for t in outputs), default=D(0))))
+    metrics.update(pulses=len(outputs), max_width=str(max((t.box().width() for t in outputs), default=D(0))))
+    metrics[kind] = len(leaves)
     return {'outputs': outputs, 'state': state, 'metrics': metrics}

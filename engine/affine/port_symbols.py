@@ -36,6 +36,20 @@ from decimal import Decimal as D
 from experiment_parameters import PHYSICAL_EPSILON
 
 PORTS = range(3)
+# Fix S (affine/param_split.py): port j -> (lo, hi), the sub-interval of [-1, 1] to which the
+# port's mark-rate symbol is restricted. Empty: every port covers the whole box.
+LM_PIECES = {}
+
+
+def lm_factor(cell, j):
+    """1 + eps*u with u in [-1, 1], or in the piece [lo, hi] (own symbol name per piece)."""
+    from affine_iv import I
+    if j not in LM_PIECES:
+        return 1 + I.symbol(f'{cell}:LM:{j}', PHYSICAL_EPSILON)
+    lo, hi = LM_PIECES[j]
+    center, radius = (lo + hi) / 2, (hi - lo) / 2
+    eps = D(PHYSICAL_EPSILON)
+    return 1 + I(eps * center) + I.symbol(f'{cell}:LM:{j}:piece[{lo},{hi}]', eps * radius)
 # Tests that pin every symbol to radius 0 (exact-parameter sampling) turn this
 # off; a campaign always runs with it on.
 COVER_CHECK = True
@@ -51,7 +65,7 @@ def install(engine):
         plain_settings(cell)          # plain boxes everywhere + checks
         A, K, RM = b.A, b.K, b.RM
         sym = lambda name, j: 1 + I.symbol(f'{cell}:{name}:{j}', PHYSICAL_EPSILON)
-        LM = tuple(v.LM * sym('LM', j) for j in PORTS)
+        LM = tuple(v.LM * lm_factor(cell, j) for j in PORTS)
         LS = tuple(v.LS * sym('LS', j) for j in PORTS)
         LE = tuple(v.LE * sym('LE', j) for j in PORTS)
         M = tuple(v.M * sym('M', j) for j in PORTS)
@@ -78,6 +92,13 @@ def install(engine):
         # and the kernel's own timing inequalities hold for every port.
         for j in PORTS:
             for name, x, box in (('LM', LM[j], b.LM), ('LS', LS[j], b.LS), ('LE', LE[j], b.LE), ('M', M[j], b.M)):
+                if name == 'LM' and j in LM_PIECES:
+                    lo, hi = LM_PIECES[j]
+                    eps = D(PHYSICAL_EPSILON)
+                    piece = v.LM * I(1 + eps * lo, 1 + eps * hi)
+                    if COVER_CHECK and not (x.lo <= piece.lo and piece.hi <= x.hi):
+                        raise RuntimeError(f'port_symbols: LM_{j} does not cover its piece')
+                    continue
                 if COVER_CHECK and not (x.lo <= box.lo and box.hi <= x.hi):
                     raise RuntimeError(f'port_symbols: {name}_{j} does not cover the parameter box')
             for name, x, box in (('D0', D0[j], b.D0), ('DM', b.DM_PORTS[j], b.DM), ('DS', b.DS_PORTS[j], b.DS),

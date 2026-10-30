@@ -6,5 +6,5 @@ statement, the campaign identity, the run manifest and every terminal certificat
 
 | Box | Status |
 |---|---|
-| ε = 3e-3 | Not yet certified: waiting for a fresh 18/18 campaign with the committed engine |
-| ε = 1e-2 | Not yet started |
+| ε = 3e-3 | **Certified**: 18/18 layers, 12/12 checks of `verify.py`, inclusion control passed ([`eps3e-3/`](eps3e-3/README.md)) |
+| ε = 1e-2 | Next |

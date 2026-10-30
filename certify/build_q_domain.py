@@ -35,8 +35,18 @@ def main(terminal_path, certificate_path, output_path):
             kind = ('influential' if row and p in row['influential_ports']
                     else 'masked' if row and p in row['masked_ports'] else 'silent')
             counts[kind] += 1
-            gains.append(dict(port=p, kind=kind, lower=c['g'][p][0],
-                              upper='C_i(theta)' if kind == 'masked' else c['g'][p][1],
+            # Active cells: the gain bounds the future certificate used (stored box
+            # intersected with exp of the stored log-gain bounds, rounded outward at
+            # 90 digits), intersected again with the stored box: both are valid
+            # enclosures of the same gain. Silent cells: the stored box.
+            bounds = c['g'][p]
+            if row:
+                lo = max(D(c['g'][p][0]), D(row['gain_bounds'][p][0]))
+                hi = min(D(c['g'][p][1]), D(row['gain_bounds'][p][1]))
+                assert lo <= hi
+                bounds = [str(lo), str(hi)]
+            gains.append(dict(port=p, kind=kind, lower=bounds[0],
+                              upper='C_i(theta)' if kind == 'masked' else bounds[1],
                               intersect_physical_cap=True))
         assert D(c['b'][1]) <= D('1.1')
         domain.append(dict(layer=c['layer'], lane=c['lane'], active=row is not None, main_mode='READY',
@@ -49,7 +59,8 @@ def main(terminal_path, certificate_path, output_path):
         future_certificate_sha256=hashlib.sha256(certificate_path.read_bytes()).hexdigest(),
         port_counts=counts, cells=domain,
         interpretation='Quiescent domain built from the extracted enclosures, per the general-epsilon future '
-                       'theorem. Gain bounds are intersected with each fixed device physical cap; b may grow '
+                       'theorem. Active-cell gain bounds are those of the future certificate (stored box intersected '
+                       'with exp of the stored log-gain bounds), then intersected with each fixed device physical cap; b may grow '
                        'monotonically up to 1.1; masked gains may grow up to the cap.')
     Path(output_path).write_text(json.dumps(definition, indent=2) + '\n')
     print(json.dumps(dict(port_counts=counts, cells=len(domain))))

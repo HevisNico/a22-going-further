@@ -17,7 +17,7 @@ The calendar is the 28-pulse protocol (sources at 0, 8, …, 216; terminal cut a
 |---|---|---|
 | Fix T | layers 1–17 accepted | (18,0), (18,1), (18,11), (18,4) and (18,8) refused |
 | Fix T + KMAX 1024 | layers 1–17 accepted (≈ 20 min, 4 workers) | 9 of 12 accepted; (18,0), (18,5), (18,7) refused |
-| Fix T + KMAX 1024 + Fix T′ (this engine) | not yet run | (18,0), (18,5), (18,7) accepted in targeted replays from the previous campaign |
+| Fix T + KMAX 1024 + Fix T′ (this engine) | **18/18 layers, no refusal** (≈ 32 min of layer computation) | all 12 accepted; certified in `../results/eps3e-3/` |
 
 A box is certified only by a fresh campaign with this exact engine, followed by
 `certify/certify_box.py` (see `../CERTIFICATION.md`).

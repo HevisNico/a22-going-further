@@ -1,0 +1,39 @@
+{
+  "status": "PASS",
+  "scope": "Independent verification of fixed future-wave brackets and strict guard inequalities; no training-entry qualification",
+  "arithmetic": "Decimal-directed 70-digit operations; degree-90 unscaled exponential series; 250-term atanh logarithms; explicit tails; no exp/ln library calls",
+  "certificate_sha256": "aba6b320117602cbbf492315b97f72812a28363f2ae6e3a6482ed30987267aea",
+  "terminal_input_sha256": "55c288ce5f64f8b9fbaa30bf6163c64370d0a237f1a53e84d056aeec41da8091",
+  "active_cells": 191,
+  "masked_ports": 15,
+  "influential_ports": 525,
+  "global_quiescent_upper": "12.79143764474043936064997252532340089922484050873225211436006846061790",
+  "global_quiescent_coarse_strict_bound": "19",
+  "idle_margin_coarse_strict_lower": "1",
+  "minimum_margins": {
+    "before_first_raw_end": "0.002773974749061380862258374691009521484375",
+    "before_first_error": "0.099482700211384563969068901459217546944128551844466600199401794616151",
+    "influential_errors_end_before_reopening": "0.346377335854916843890382533622488837108724022064865214177616466066226",
+    "all_raw_inputs_end_before_reopening": "0.099340603790894339664584705705516101886455654462056788901788983618886",
+    "ready_before_next_input": "13.03470676202640417028153750589989621991578449126774788563993153938210",
+    "auxiliary_ready_before_next_same_port_input": "18.74623755720351887782053637095057258873789336760280842527582748244734",
+    "masked_arrival_after_firing": "0.048496749345531497965566813945770263671875"
+  },
+  "work_upper": "241.2569423394848013788616984038787968476533301796480266330640447534076",
+  "domain_counts": {
+    "active_cells": 191,
+    "inactive_cells": 25,
+    "masked_ports": 15,
+    "influential_ports": 525,
+    "all_active_ports": 540
+  },
+  "return_contract": {
+    "requested_return_bound": "19",
+    "global_quiescent_upper": "12.79143764474043936064997252532340089922484050873225211436006846061790",
+    "global_idle_margin_lower": "7.20856235525956063935002747467659910077515949126774788563993153938210",
+    "checked_integer_global_return_coarse_upper": "12.7914376447404393606499725253234008992249",
+    "reporting_rounding_grid": "1e-40, ceiling"
+  },
+  "eps": "0.003",
+  "physical_entry_status": "NOT_ESTABLISHED_BY_THIS_FUTURE_CHECK"
+}

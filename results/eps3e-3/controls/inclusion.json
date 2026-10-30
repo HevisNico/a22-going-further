@@ -1,0 +1,90 @@
+{
+ "scope": "Point-simulation inclusion control; evidence, not proof",
+ "epsilon": "0.003",
+ "campaign": {
+  "environment": {
+   "arithmetic_backend": "native",
+   "native_sha256": "29b1d226d6576e418c38d476cb050a20b37f6db67b6f70ca734423cac6985c57",
+   "numpy": "2.3.5",
+   "python": "3.12.14",
+   "scipy": "1.17.0"
+  },
+  "kernel_id": "c57d43fcf8ce1227dddddc566fac1df939860d994e34f0b7696819dcb2b4ce46",
+  "parameters": {
+   "epsilon_relative": "0.003",
+   "initial_delta": "1e-5",
+   "training_calendar": {
+    "count": 28,
+    "first": "0",
+    "gap": "8",
+    "last": "216",
+    "source_lane": 0,
+    "terminal_time": "230"
+   }
+  },
+  "run_id": "afd81b4e96cf4b8e81bade234c919e9f",
+  "schema": "A22-affine-research-campaign-1",
+  "scientific_status": "experimental_not_qualified"
+ },
+ "devices": 14,
+ "devices_inside": 14,
+ "results": [
+  {
+   "case": "independent_uniform_000",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_uniform_001",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_corner_000",
+   "cells_outside": 0
+  },
+  {
+   "case": "independent_corner_001",
+   "cells_outside": 0
+  },
+  {
+   "case": "homogeneous_corner_000",
+   "cells_outside": 0
+  },
+  {
+   "case": "homogeneous_corner_001",
+   "cells_outside": 0
+  },
+  {
+   "case": "layer_corner_000",
+   "cells_outside": 0
+  },
+  {
+   "case": "layer_corner_001",
+   "cells_outside": 0
+  },
+  {
+   "case": "lane_corner_000",
+   "cells_outside": 0
+  },
+  {
+   "case": "lane_corner_001",
+   "cells_outside": 0
+  },
+  {
+   "case": "port_role_corner_000",
+   "cells_outside": 0
+  },
+  {
+   "case": "port_role_corner_001",
+   "cells_outside": 0
+  },
+  {
+   "case": "bottleneck_000",
+   "cells_outside": 0
+  },
+  {
+   "case": "bottleneck_001",
+   "cells_outside": 0
+  }
+ ],
+ "failures": []
+}

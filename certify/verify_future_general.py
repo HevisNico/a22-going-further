@@ -4,6 +4,7 @@ Decimal exp/ln are not used. All transcendental bounds are finite series with
 explicit positive remainders; arithmetic uses two 70-digit directed contexts.
 """
 import json,sys,hashlib
+from fractions import Fraction as F
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from general_contract import validate_inputs, validate_aggregates, validate_return, row_return_claim
@@ -78,6 +79,17 @@ def main():
    masked_n+=len(masked);influential_n+=len(influential)
    masked_set.extend((n,lane,p) for p in masked)
    first=min(v.l for v in ins.values())
+   # Independent gain bounds: stored box intersected with exp of the stored log-gain
+   # bounds (own decimal series), capped ports keep their stored box.
+   G=[]
+   for p in range(3):
+    g=B(*s['g'][p])
+    if not s['caps'][p]:
+     z=s['literal_affine_bounds']['z'][p];zl,zu=F(z['lo']),F(z['hi'])
+     # exact fractions, rounded outward to the 70-digit directed contexts
+     ez=exp(B(LO.divide(D(zl.numerator),D(zl.denominator)),HI.divide(D(zu.numerator),D(zu.denominator))))
+     g=B(max(g.l,ez.l),min(g.u,ez.u))
+    G.append(g)
    def guard(t,upper):
     q=B('.1')
     for p in influential:
@@ -85,7 +97,7 @@ def main():
      age=B(t)-B(arrival)
      if age.u<=0:continue
      assert age.l>=0
-     q=q+B(s['g'][p][1 if upper else 0])*h(age)
+     q=q+B(G[p].u if upper else G[p].l)*h(age)
     return q
    assert guard(f.l,True).u<1 and guard(f.u,False).l>1
    pmax=1+LN25/B(s['b'][0]);assert D(s['b'][0])>0

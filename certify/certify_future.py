@@ -120,6 +120,15 @@ def main():
    assert c['E']==[50,100]
    ins=[(p,prev[(j+p-1)%12]) for p in range(3) if prev[(j+p-1)%12] is not None]
    gains=[I(*pair) for pair in c['g']]
+   # g = exp(z): the stored gain box (an affine exponential) and exp of the stored
+   # log-gain bounds are both valid enclosures of the same gain; keep their
+   # intersection (directed exp). Capped ports keep their stored cap box.
+   zb=c['literal_affine_bounds']['z']
+   for p in range(3):
+    if c['caps'][p]:continue
+    ez=exp(I(F(zb[p]['lo']),F(zb[p]['hi'])))
+    lo,hi=max(gains[p].lo,ez.lo),min(gains[p].hi,ez.hi);assert lo<=hi,(n,j,p)
+    gains[p]=I(lo,hi,raw=True)
    assert all(g.lo>0 for g in gains)
    assert all(F(m[0])<=F('.025')<=F(m[1])<1 for m in c['m'])
    if not ins:
@@ -158,7 +167,7 @@ def main():
    assert all(v.lo>0 for v in ms.values()),(n,j,{k:v.pair() for k,v in ms.items()})
    quiet=max(fh+pmax.hi,max(v[1]+END.hi for p,v in ins),fh+S)
    quiet_max=max(quiet_max,quiet);assert quiet<20*S
-   row=dict(layer=n,lane=j,inputs=[dict(port=p,arrival=[decimal(v[0]),decimal(v[1])]) for p,v in ins],fire=[decimal(fl),decimal(fh)],influential_ports=influential,masked_ports=masked,protection_duration=[decimal(pmin.lo),decimal(pmax.hi)],quiescent_by=decimal(quiet),lower_guard_at_left=qlo.pair(),upper_guard_at_right=qhi.pair(),positive_margins={k:v.pair() for k,v in ms.items()})
+   row=dict(layer=n,lane=j,inputs=[dict(port=p,arrival=[decimal(v[0]),decimal(v[1])]) for p,v in ins],fire=[decimal(fl),decimal(fh)],gain_bounds=[g.pair() for g in gains],influential_ports=influential,masked_ports=masked,protection_duration=[decimal(pmin.lo),decimal(pmax.hi)],quiescent_by=decimal(quiet),lower_guard_at_left=qlo.pair(),upper_guard_at_right=qhi.pair(),positive_margins={k:v.pair() for k,v in ms.items()})
    rows.append(row);margins_all.append(ms);masked_all.extend(dict(layer=n,lane=j,port=p) for p in masked);cur.append((fl,fh))
   prev=cur;print('Inequalities certified through layer',n,flush=True)
  print('active cells',len(rows),'inactive',len(inactive),'masked ports',len(masked_all),'(v3.3: 191, 25, 15)')

@@ -1,153 +1,179 @@
-# A22: going further, toward wider parameter boxes
+# A22: a learning spiking network certified on wider parameter boxes
 
-A22 is a learning spiking network of 216 coupled hybrid cells (18 layers × 12 lanes), each with
-three input ports, local plasticity and a recovery actuator. Its physical kernel, **R**, is fixed.
-For every device whose per-port parameters lie within **±0.1 %** of nominal, it is already
-established, by a computer-assisted enclosure and a written proof, that training brings the
-network into a quiescent domain, and that afterwards the intervals between source pulses are
-transmitted **exactly** through all 18 layers.
+A22 is a spiking network of 216 coupled hybrid cells (18 layers × 12 lanes) that learns while it
+runs. Its cells follow a fixed physical kernel, **R**. This repository proves, for **every device**
+in a box of independent per-port parameter variations, that training brings the network into an
+explicit quiescent domain, and that afterwards it transmits the intervals between source pulses
+**exactly** through all 18 layers. The box is widened step by step: ±0.3 %, ±1 %, ±3 %, ±10 %.
 
-This repository asks how far that statement extends. The target is **±10 %**. A box that wide is
-closer to the variability of real components; ±0.1 % is not. The kernel R stays unchanged
-throughout. The training protocol, the verification engine and the proof may change.
-
-> **Status: work in progress.** Nothing in this repository is a certified result yet. The tables
-> below separate what is computed, what is only observed in point simulations, and what remains to
-> be done.
-
-## What is fixed and what may change
-
-| Fixed | May change |
+| Box | Status |
 |---|---|
-| The equations of R: main charge, auxiliaries, thresholds, protection, return to rest | The training protocol (number and dates of pulses, terminal cut) |
-| The 18 × 12 graph, three parents per cell | The verification engine |
-| Fixed constants: a, κ, r, r_m, thresholds, actuation factors, energy pump, b_max | The proof, as long as it stays short and rigorous |
-| The initial family: δ = 1e-5, original modes, E in [50, 100] | |
+| ±0.3 % | **Certified**: 18/18 layers, both future certificates pass ([`results/eps3e-3/`](results/eps3e-3/README.md)) |
+| ±1 % | Next: same engine, same protocol |
+| ±3 %, ±10 % | Planned: 29-pulse protocol and scenario propagation (see [Beyond ±1 %](#beyond-1-)) |
 
-The box: for each cell and each input port independently, the five parameters C, L_m, L_s, L_e
-and M are fixed in time, anywhere within ±ε of nominal. All other constants are unchanged.
+"Certified" means a computer-assisted enclosure of every admissible trajectory, finite
+certificates rechecked by independent programs, and written arguments. They hold under the
+explicit execution assumptions A1–A4. The proof is not machine-checked as a whole and has not been
+independently reviewed ([Limits](#limits)).
 
-## The protocol: 29 training pulses, data from t = 250
+## The kernel R
 
-The original protocol trains with 28 pulses at 0, 8, …, 216 and claims exact transmission from
-t = 230. Point simulations at ±10 % refute that claim. In 8 of 224 devices the first future
-interval is distorted, by up to 4.1 × 10⁻⁵. One simple witness uses homogeneous parameters and the
-exact nominal initial state: an input interval of 20 comes out as 20.000019278.
+Full statement in English: [`kernel/README.md`](kernel/README.md). The original definition, in
+French, is in [`model/`](model/). The executable kernel, `engine/kernel/`, is byte-identical to its
+reference (`kernel/KERNEL_SHA256SUMS`).
 
-The mechanism is a property of R itself: **READY is not rest.** A cell can be READY with a
-residual charge left by training, without a later threshold–protection–return cycle to reset it
-exactly to q = r. That residual decays like e^(−κt) and never reaches zero in finite time. The
-next response therefore fires slightly early. The affected cells sit where the two fronts launched
-from lane 0 meet, on the far side of the ring.
+Each cell has a main unit and, on each of its three input ports, an auxiliary unit.
 
-The revised protocol counts the source pulse at **230 as a 29th training (conditioning) pulse**
-and starts the data at **250**. The pulse at 230 makes every active cell fire and return exactly to
-rest, so the data start from a reset state. Nothing in R changes.
+- **Main unit: threshold, protection, return.** While READY, the charge integrates its inputs:
+  q′ = κ(r − q) + Σ g_i p_i(t). At q = 1 the cell fires: q is set to 1, admission closes, and a FAST
+  phase (q′ = −aq, exactly one time unit, during which the output pulse is emitted) is followed by a
+  SLOW phase (q′ = −b q). The cell reopens at **exactly** q = r. The return date is not prescribed:
+  it follows from the recovery variable b.
+- **Auxiliary units: a delayed sensory chain.** An auxiliary sees its port's raw input even while
+  the main unit is protected. When it crosses its own threshold, it runs MARK → SILENT → ERROR, each
+  section ending at an exact charge.
+- **Learning on failure.** The ERROR section of an auxiliary deposits log-gain on its port, but only
+  while the main unit is READY. A whole section adds exactly Δz = 0.6, whatever the port's decay
+  rate.
+  - If the cell fired on that input, the ERROR arrives during protection and is masked: the gain
+    does not change.
+  - If the cell missed, the gain grows.
 
-For **±0.3 % and ±1 %** the original 28-pulse protocol is kept: along every tested motif, exact
-rest at 230 and first-interval fidelity hold up to about 1.48 %, and the statement then stays the
-one already certified at ±0.1 %. The 29-pulse protocol is used from ±3 % on.
+  Gains thus grow on misses and stay put on hits, with no teacher, no target and no counter.
+  Gains are capped at C_i.
+- **Learned recovery.** A MARK received while the main unit is protected increases b (whole mark:
+  Δb = 0.1, capped at 1.1), which shortens later protections.
+- **Energy.** A reserve E′ = 10(100 − E) − W gates all actuations. A uniform work bound keeps E in
+  [50, 100], so the gates stay open.
+- **Variability.** Five physical parameters per port (C, L_m, L_s, L_e, M) are fixed in time and
+  chosen independently in every cell and every port. Initial states vary by δ = 1e-5, and residual
+  ERROR phases are allowed.
 
-## The box ladder
+The network is feedforward. Cell (n, j) listens to (n−1, j−1), (n−1, j) and (n−1, j+1), lanes modulo
+12. The source is lane 0 of layer 0.
 
-The work proceeds by widening the box step by step. Each step must close before the next one is
-attempted.
+### How R relates to the literature
 
-| ε | Certified? | What point simulations show | What the engine needs |
-|---|---|---|---|
-| ±0.1 % | **Yes** (previous work, 28 pulses) | — | — |
-| ±0.3 % | In progress | Along the 9 tested parameter motifs, the training history is identical to the nominal one; both protocols pass | A few local extensions (see below); 13 of 18 layers are reached |
-| ±1 % | Not yet | Same as ±0.3 % along the 9 motifs | Probably the same engine as ±0.3 % |
-| ±3 % | Not yet | Training histories start to branch: from about 1.5 % on some motifs, 36 or more cells change their number of training firings. Under the 28-pulse protocol, exact rest at t = 230 is lost from about 1.48 %, and first-interval fidelity from about 3.68 %, along the worst motifs found | Scenario propagation (several training histories per cell); the 29-pulse protocol |
-| ±10 % | Not yet | 256 prospectively specified devices and 192 adversarial proposals all pass the 29-pulse protocol (largest interval error 3.4 × 10⁻¹³). The 191-cell active mask is preserved, but **98 of 216 cells** have a device-dependent number of training firings, up to 5 different values in one cell | Scenario propagation at scale; convergence of all histories into one terminal domain Q29 |
+- **Spiking neurons and plasticity.** Leaky integrate-and-fire neurons trained by
+  spike-timing-dependent plasticity use pair-based, Hebbian timing rules. R's learning signal is
+  different. It is a delayed, self-generated error current, gated by the cell's own protection
+  state: an input that succeeded in firing the cell is masked, and an input that failed is
+  reinforced. Refractoriness is not a dead time: it is a protected dynamical phase with a learned
+  recovery rate and an exact return to rest.
+- **Temporal coding through layers.** Stable propagation of synchronous volleys (synfire chains;
+  Diesmann, Gewaltig and Aertsen, *Nature*, 1999), and their emergence through plasticity in
+  simulation (for example Fiete, Senn, Wang and Hahnloser, *Neuron*, 2010), are classical. A22 makes
+  a stronger, exact statement, for every device of a box: after learning, each active cell answers
+  every pulse with a fixed latency, so source intervals are preserved exactly.
+- **Verification.** Reachability tools for hybrid systems (Flow*, CORA, JuliaReach, DynIbex) enclose
+  hybrid trajectories. Neural-network verification (Reluplex, Katz et al., 2017; formal methods for
+  trained spiking networks) checks networks whose weights are already fixed. Here the object
+  certified is the **learning dynamics itself**: 216 coupled hybrid cells, plasticity, event orders
+  that vary inside the enclosure, and independent uncertainty on every port. We know of no earlier
+  certificate of this kind; pointers are welcome.
 
-The thresholds in this table are measured along the parameter directions tested. They are not
-robustness radii of the full box, which has 3,240 parameters. A compact summary of the numerical
-studies is in [`evidence/`](evidence/README.md).
+## What a certified box states
 
-## How the proof is kept simple
+For every device in the box and every admissible initial state, with 28 training pulses on lane 0
+at 0, 8, …, 216:
 
-Every change to the engine must be an instance of one of three generic rules. Each rule is proved
-once:
+1. **Training.** At t = 230 the network is in the explicit quiescent domain Q28.
+2. **Afterwards, forever.** From Q28, for every source sequence with gaps of at least 20:
+   - each active cell (191 of 216) fires exactly once per pulse;
+   - the other cells stay silent;
+   - the network is back at rest, and back in Q28, before the next pulse.
+3. **Exact transmission.** Each active cell has a latency fixed by its device and learned state.
+   The intervals between pulses are therefore transmitted exactly through the 18 layers. Latencies
+   differ between devices.
 
-1. **Exact flow enclosure.** The model's own closed-form solutions (variation of constants,
-   exponential decay), evaluated with outward-rounded arithmetic.
-2. **Exhaustive case split.** Every real trajectory belongs to at least one branch: every event
-   order, every actuation history, every position of a firing among arrivals.
-3. **Monotone comparison and hull.** A quantity monotone in an uncertain input is bounded by its
-   extreme cases. A merge of branches takes their hull and never removes a state.
+## How it is certified
 
-An engine change that cannot be stated as one of these rules is not accepted. The aim is a proof
-whose new parts fit in a few pages, with the abstract core of each rule checkable in Lean.
+1. **Enclosure of training.** `engine/` propagates outward-rounded affine enclosures of every
+   admissible trajectory, cell by cell and layer by layer. It covers every compatible event order
+   and refuses when it cannot decide. Each layer is re-read by a separate process.
+2. **Three generic rules.** Every mechanism of the engine instantiates one of three rules, each
+   proved once:
+   - exact flow enclosure (the model's own closed-form solutions);
+   - exhaustive case split (every trajectory lies in some branch);
+   - monotone comparison and hull.
 
-## Why the old engine is not enough beyond about 1 %
+   The 17 mechanisms beyond the base engine, with their obligations, are listed in
+   [`proof/going_further/MECHANISMS.md`](proof/going_further/MECHANISMS.md). The base coverage
+   theorem and its extensions are in [`proof/inherited_eps1e-3/`](proof/README.md).
+3. **Finite certificates.** `certify/` extracts the exact terminal state and audits lineage, clocks
+   and every recorded mechanism. It then certifies the initial section and the future regime twice:
+   in directed integers, and in directed decimals with a different implementation. Neither imports
+   the engine.
+4. **Controls.** Point-simulated devices must lie inside the certified enclosures
+   ([`controls/`](controls/README.md), [`CONTROLS.md`](CONTROLS.md)).
 
-The verification engine of the previous work follows **one** training history per cell. Up to
-about 1 %, that is also what happens physically. Beyond it, different devices in the box fire a
-different number of times during training. No single-history enclosure can then cover the box, so
-the statement to prove becomes: *different training histories all converge to the same
-transmitting regime after the conditioning pulse.*
+The full procedure is [`CERTIFICATION.md`](CERTIFICATION.md).
 
-The engine therefore needs **scenario propagation**:
-- each cell keeps separate branches, one per history;
-- branches are merged only when they genuinely rejoin (same number of emissions, exact rest);
-- sets of possible spike trains are passed to the next layer.
+## Verify it
 
-A first, cell-level version is in [`engine/`](engine/README.md). It is Fix F: a cell is recomputed
-once per actuation history.
+```sh
+python3 -I certify/verify.py --box results/eps3e-3
+```
 
-## Current engine status (±0.3 %, 28-pulse calendar)
+This recomputes the initial section, both future certificates and Q28 from the committed records.
+It uses the standard library only, and CI runs it. With the campaign outputs and the as-run engine
+(release assets of the box), it also checks every output file against the run manifest, re-extracts
+and re-audits everything, and recomputes the engine's `kernel_id`:
 
-| Engine | First refusal | Layers |
-|---|---|---|
-| Base engine | layer 8: slow recovery inside an uncertain event group | 7 / 18 |
-| + R2 (existing recovery resolver on the event-group path) | layer 14: firing inside an uncertain event group | 13 / 18 |
-| + E2, M, H, F and further enclosure mechanisms | cell (15,0), in targeted replays | 14 / 18 |
-| + Fix T (READY fire root relative to an admitted pulse) | layer 18 | 17 / 18 |
-| + KMAX 1024 (keeps 4× more affine correlations) | layer 18: 9 of 12 cells accepted | 17 / 18 |
-| + Fix T′ (recovery return relative to the latest mark), the committed engine | the three remaining cells accepted in targeted replays | fresh campaign pending |
+```sh
+python3 -I certify/verify.py --box results/eps3e-3 <campaign dir> --engine <engine dir>
+```
 
-Every mechanism and its proof obligation is listed in
-[`proof/going_further/MECHANISMS.md`](proof/going_further/MECHANISMS.md). The procedure that turns
-a finished campaign into a certified box is [`CERTIFICATION.md`](CERTIFICATION.md).
+To run a campaign yourself, see [`engine/README.md`](engine/README.md).
 
-## Next steps
+## Beyond ±1 %
 
-1. A fresh ±0.3 % campaign with the committed engine, then `certify/certify_box.py` and the
-   written arguments for every mechanism used.
-2. The same for ±1 %, with the same engine if possible.
-3. The 29-pulse calendar (terminal cut at 250), scenario propagation between cells, then ±3 % and
-   ±10 %.
-5. For each closed step: the terminal domain, the future-invariance check, and a short written
-   proof organised by the three rules.
-6. For each closed step: the verification controls and the scientific controls of
-   [`CONTROLS.md`](CONTROLS.md). The preset-gain control in particular asks whether learning is
-   what provides the robustness.
+Point simulations of the full network (numerical evidence, summarized in
+[`evidence/`](evidence/README.md)) set the plan for wider boxes.
+
+- **READY is not rest.** At ±10 %, a few devices end training with a cell READY but carrying a
+  residual charge. It decays like e^(−κt) and never vanishes, so the first future response fires
+  slightly early. Along the motifs tested, exact rest at 230 is lost beyond about 1.5 % and
+  first-interval fidelity beyond about 3.7 %. From ±3 %, the source
+  pulse at 230 is therefore used as a **29th, conditioning pulse**: it resets every active cell
+  exactly, and the data start at 250. Under this protocol, 256 prospectively specified devices and
+  192 adversarial ones all transmit exactly at ±10 %.
+- **Training histories branch.** Beyond about 1.5 %, devices fire a different number of times
+  during training: at ±10 %, 98 of 216 cells. Certification then needs **scenario propagation**:
+  separate branches per history, merged only when they rejoin, and sets of spike trains between
+  cells. The engine's history fork (mechanism 14) is a first, cell-level step.
 
 ## Repository contents
 
 | Path | What it is |
 |---|---|
-| `kernel/` | The physical kernel R, restated in English, with the checksums showing that the executable kernel is unchanged |
-| `model/` | The original model texts: the reference definition (French) and the ±0.1 % specification |
-| `proof/` | The proof plan for wider boxes (`proof/going_further/`) and the complete inherited proof of the ±0.1 % result, with its Lean 4 files |
-| `engine/` | Verification engine; `engine/CHANGES_FROM_BASE.diff` is the full diff against the base engine |
-| `certify/` | Certification tools: run manifest, terminal extraction, audits, mechanism census, initial section, future certificate and its independent check, Q28, and `verify.py` |
-| `results/` | One folder per certified box (none yet) |
-| `CERTIFICATION.md` | The procedure from a finished campaign to a certified box |
-| `tools/` | Single-cell replay from recorded parent outputs, diagnostics, and the evidence summarizer |
-| `evidence/` | Compact summary of the point-simulation studies (numerical evidence, not certificates) |
-| `CONTROLS.md` | Planned verification controls and scientific controls (no learning, preset gains, shuffled gains, gate off, energy, selectivity) |
-| `HISTORY.md` | Where the base engine, the model and the earlier results come from |
+| `kernel/` | The kernel R in English, and the checksums of the executable kernel |
+| `model/` | The original model definition (French) and specification |
+| `engine/` | The verification engine; `CHANGES_FROM_BASE.diff` against the base engine |
+| `certify/` | Certification tools and `verify.py` |
+| `results/` | One folder per certified box: statement, campaign identity, run manifest, certificates, controls |
+| `proof/` | `going_further/`: proof plan, mechanisms and their obligations, notes. `inherited_eps1e-3/`: the base coverage theorem, its extensions and Lean 4 files |
+| `controls/` | Inclusion control and the point simulator |
+| `evidence/` | Summary of the point-simulation studies |
+| `tools/` | Single-cell replay and diagnostics |
+| `CERTIFICATION.md`, `CONTROLS.md` | Certification procedure; planned verification and scientific controls |
+| `HISTORY.md` | Sources of the base engine, model and proof |
 
 ## Limits
 
-- No result here is certified yet. Point simulations can refute a claim; they cannot establish it
-  for the whole box.
-- The box concerns five per-port parameters. Threshold, leak, waveform or interconnect
-  variability, time-varying drift and noise are outside it.
-- The result, when obtained, will concern this realization of R. It will not concern spiking
-  networks in general.
+- The box covers five per-port parameters. Threshold, leak, waveform or interconnect variability,
+  time-varying drift and noise are outside it. ±0.3 % is still far tighter than real components.
+- The proof holds under A1–A4:
+  - authentic execution of the recorded program;
+  - correct arithmetic runtime and native binaries;
+  - fail-closed assertions;
+  - namespace discipline.
+- The written arguments for the mechanisms have not been independently reviewed. Only selected
+  lemmas are machine-checked in Lean.
+- The result concerns this realization R, with this graph and this protocol. It is not a statement
+  about spiking networks in general. Whether learning gives an advantage over a network with preset
+  gains is a separate question: see the scientific controls in `CONTROLS.md`.
 
 ## How this was built
 

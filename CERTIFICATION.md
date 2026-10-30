@@ -37,8 +37,8 @@ Each step runs as a separate process, standard library only, and none imports th
 | Commutations | Every recorded lemma-E / E2 use |
 | Mechanism census | Every recorded use of every mechanism, Fix F leaves, history counts |
 | Initial section | Its finite inequalities at the box's ε |
-| Future certificate | The regime from the terminal domain, in directed integers; the active/masked partition is recomputed, not imposed |
-| Independent future check | Directed decimals, a different implementation; the contract is gaps ≥ 20 and return strictly before 19 |
+| Future certificate | The regime from the terminal domain, in directed integers; the active/masked partition is recomputed, not imposed. Each gain box is the stored box intersected with [e^(inf z), e^(sup z)], from the stored log-gain bounds (two valid enclosures of the same gain) |
+| Independent future check | Directed decimals, a different implementation, including its own exponential for the gain intersection; the contract is gaps ≥ 20 and return strictly before 19 |
 | Quiescent domain Q28 | Built from the extraction and the certificate |
 
 The campaign directory is then published as a release asset, and `results/<box>/` is committed:

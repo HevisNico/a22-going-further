@@ -120,7 +120,8 @@ def metrics(records,future,end):
             'coasting_cells':all_coast,'future_state_changes':future_gain_changes,
             'warning':'Finite numerical observations. Global source windows are a diagnostic; anomalies require causal replay.'}
 
-def run_network(case,devices=None,backend='fast',gaps=None,first=230.,checkpoints=True):
+def run_network(case,devices=None,backend='fast',gaps=None,first=230.,checkpoints=True,
+                mode='a22',fixed=None):
     devices=make_devices(case) if devices is None else devices
     training,future,end=protocol(gaps,first);previous=[training+future]+[[] for _ in range(11)]
     records=[];start=time.perf_counter()
@@ -136,8 +137,9 @@ def run_network(case,devices=None,backend='fast',gaps=None,first=230.,checkpoint
                 times=[t for port in inputs for t in port if src<=t<upper]
                 if times:local.append({'wave':k,'time':float(min(times))})
             dates=sorted(set([230.,*future,*[x['time'] for x in local]]))
-            result=(simulate(inputs,devices[n-1][j],end,checkpoints=dates) if backend=='fast'
-                    else simulate_ode(inputs,devices[n-1][j],end))
+            allocation=fixed[n-1][j] if isinstance(fixed,list) else fixed
+            result=(simulate(inputs,devices[n-1][j],end,checkpoints=dates,mode=mode,fixed=allocation) if backend=='fast'
+                    else simulate_ode(inputs,devices[n-1][j],end,mode=mode,fixed=allocation))
             current.append(result['outputs'])
             records.append({'layer':n,'lane':j,'device':devices[n-1][j].__dict__,
                             'inputs':inputs,'local_arrival_checks':local,'result':result})

@@ -19,8 +19,10 @@ A=math.log(4); K=.5; R=.1; RM=.025; BMAX=1.1
 NOMINAL=np.array([4, math.log(1.25)/.02, math.log(8)/1.06, A/.15,
                   (1-RM)/(A/(A-K)*(math.exp(-K*.02)-math.exp(-A*.02)))])
 
-def h(u):
-    return A/(A-K)*(math.exp(-K*u)-math.exp(-A*u))
+def h(u, kappa=K):
+    if kappa == A:
+        return A*u*math.exp(-A*u)
+    return A/(A-kappa)*(math.exp(-kappa*u)-math.exp(-A*u))
 
 @dataclass
 class Device:
@@ -30,10 +32,30 @@ class Device:
     initial_z: list
     initial_b: float
     initial_aux: list
+    # Exploratory families only: the certified family uses these defaults.
+    # The main trigger varies; its reset remains 1 and its emitted pulse is canonical.
+    main_threshold: float = 1.
+    kappa: float = K
+    # Per port: READY->MARK, MARK->SILENT, SILENT->ERROR. Rest stays RM.
+    auxiliary_thresholds: list | None = None
+
+def thresholds(device):
+    values = np.array(device.auxiliary_thresholds if device.auxiliary_thresholds is not None
+                      else [[1., .8, .1]]*3, dtype=float)
+    if (values.shape != (3, 3) or not np.all(np.isfinite(values))
+            or not np.all(values[:, 0] > values[:, 1])
+            or not np.all(values[:, 1] > values[:, 2]) or not np.all(values[:, 2] > RM)):
+        raise ValueError('auxiliary thresholds must be ordered above rest')
+    if not (math.isfinite(device.kappa) and 0 < device.kappa < A
+            and math.isfinite(device.main_threshold) and device.main_threshold > .25):
+        raise ValueError('invalid leak or main threshold')
+    return values
 
 def prepare_auxiliary(arrivals, device):
     events=[]
+    levels=thresholds(device); kappa=device.kappa
     for j in range(3):
+        firing, mark_end, error_start = levels[j]
         cap,lm,ls,le,mult=device.params[j]
         mode=device.initial_aux[j]
         if mode not in (0,3): raise ValueError('unsupported initial auxiliary mode')
@@ -52,17 +74,17 @@ def prepare_auxiliary(arrivals, device):
             # source pulse at t=0. That raw pulse is admitted by the auxiliary
             # only after the residual phase ends; no physical reset is added.
             ready_start=max(arrival,finish) if previous is None and mode==3 else arrival
-            mstart=RM+(initial_m-RM)*math.exp(-K*arrival) if previous is None and mode==0 else RM
+            mstart=RM+(initial_m-RM)*math.exp(-kappa*arrival) if previous is None and mode==0 else RM
             attenuation=math.exp(-A*(ready_start-arrival))
-            delay=brentq(lambda u:RM+(mstart-RM)*math.exp(-K*u)+mult*attenuation*h(u)-1,
+            delay=brentq(lambda u:RM+(mstart-RM)*math.exp(-kappa*u)+mult*attenuation*h(u,kappa)-firing,
                          0,min(.1,arrival+1-ready_start),xtol=1e-14)
             mark=ready_start+delay
-            silent=mark+math.log(1.25)/lm
-            error=silent+math.log(8)/ls
-            finish=error+math.log(4)/le
+            silent=mark+math.log(firing/mark_end)/lm
+            error=silent+math.log(mark_end/error_start)/ls
+            finish=error+math.log(error_start/RM)/le
             events.extend([(arrival,'on',j,0,0),(arrival+1,'off',j,0,0),
-                           (mark,'aux',j,1,1.),(silent,'aux',j,2,.8),
-                           (error,'aux',j,3,.1),(finish,'aux',j,0,RM)])
+                           (mark,'aux',j,1,firing),(silent,'aux',j,2,mark_end),
+                           (error,'aux',j,3,error_start),(finish,'aux',j,0,RM)])
             previous=arrival
     return sorted(events,key=lambda e:(e[0],e[1],e[2]))
 
@@ -70,6 +92,7 @@ def simulate(arrivals, device, end, mode='a22', fixed=None, checkpoints=()):
     if mode not in ('a22','fixed','gain_only','recovery_only'):
         raise ValueError('invalid mode')
     learn_g=mode in ('a22','gain_only'); learn_b=mode in ('a22','recovery_only')
+    kappa=device.kappa; trigger=device.main_threshold
     events=prepare_auxiliary(arrivals,device)
     events.extend((float(t),'checkpoint',-1,0,0) for t in checkpoints if 0<=t<=end)
     events.append((end,'end',-1,0,0))
@@ -94,10 +117,10 @@ def simulate(arrivals, device, end, mode='a22', fixed=None, checkpoints=()):
             if aux[j]:
                 charges.append(aux_value[j]*math.exp(-[0,lm[j],ls[j],le[j]][aux[j]]*(now-aux_origin[j])))
             else:
-                val=RM+(aux_value[j]-RM)*math.exp(-K*(now-aux_origin[j]))
+                val=RM+(aux_value[j]-RM)*math.exp(-kappa*(now-aux_origin[j]))
                 if raw[j]:
                     start=max(raw_origin[j],aux_origin[j])
-                    val+=mult[j]*math.exp(-A*(start-raw_origin[j]))*h(max(0,now-start))
+                    val+=mult[j]*math.exp(-A*(start-raw_origin[j]))*h(max(0,now-start),kappa)
                 charges.append(val)
         return {'energy':energy.tolist(),'gain':np.exp(z).tolist(),'b':b,'main_mode':main,'q':q,
                 'aux_modes':list(aux),'aux_charge':charges,'raw_active':raw.tolist(),
@@ -140,8 +163,8 @@ def simulate(arrivals, device, end, mode='a22', fixed=None, checkpoints=()):
             variable=bool(np.any(errors & raw))
             if variable:
                 nonlinear+=1
-                def rhs(u,v):return [K*(R-v[0])+float(np.dot(np.exp(zend(u)),pulses))*math.exp(-A*u)]
-                def threshold(u,v):return v[0]-1
+                def rhs(u,v):return [kappa*(R-v[0])+float(np.dot(np.exp(zend(u)),pulses))*math.exp(-A*u)]
+                def threshold(u,v):return v[0]-trigger
                 threshold.terminal=True;threshold.direction=1
                 numerical_flow=solve_ivp(rhs,(0,dt),[q0],events=threshold,dense_output=True,
                                          method='DOP853',rtol=1e-11,atol=1e-13)
@@ -149,14 +172,14 @@ def simulate(arrivals, device, end, mode='a22', fixed=None, checkpoints=()):
                 if len(numerical_flow.t_events[0]):dt=float(numerical_flow.t_events[0][0]);event='fire'
                 q=float(numerical_flow.y[0,-1])
             else:
-                J=float(np.dot(np.exp(z0),pulses)); bb=J/(A-K); aa=q0-R+bb
-                def ready(u):return R+aa*math.exp(-K*u)-bb*math.exp(-A*u)
+                J=float(np.dot(np.exp(z0),pulses)); bb=J/(A-kappa); aa=q0-R+bb
+                def ready(u):return R+aa*math.exp(-kappa*u)-bb*math.exp(-A*u)
                 probe=dt
                 if aa>0 and J>0:
-                    ratio=A*bb/(K*aa)
-                    if ratio>0:probe=min(dt,max(0,math.log(ratio)/(A-K)))
-                if probe>0 and ready(probe)>=1:
-                    dt=brentq(lambda u:ready(u)-1,0,probe,xtol=1e-13);event='fire'
+                    ratio=A*bb/(kappa*aa)
+                    if ratio>0:probe=min(dt,max(0,math.log(ratio)/(A-kappa)))
+                if probe>0 and ready(probe)>=trigger:
+                    dt=brentq(lambda u:ready(u)-trigger,0,probe,xtol=1e-13);event='fire'
                 q=ready(dt)
         elif main==1:
             remaining=fire_start+1-t

@@ -1,0 +1,62 @@
+{
+  "schema": "A22-paired-learning-pilot-1",
+  "status": "Exploratory numerical pilot; criteria and seeds fixed before study execution",
+  "source_commit": "068d0abd96b48903d665658ad4259d787cce8481",
+  "training": {"count": 28, "first": 0, "gap": 8},
+  "future": {"first": 230, "gaps": [20, 23, 41, 20, 31]},
+  "tolerance": 1e-7,
+  "calibration": [
+    {"kind": "independent_uniform", "seed": 810001, "index": 0, "initial_policy": "random"},
+    {"kind": "independent_corner", "seed": 810002, "index": 1, "initial_policy": "endpoint_mixed"}
+  ],
+  "evaluation": [
+    {"kind": "independent_uniform", "seed": 820001, "index": 0, "initial_policy": "random"},
+    {"kind": "independent_uniform", "seed": 820002, "index": 1, "initial_policy": "endpoint_ready"},
+    {"kind": "independent_corner", "seed": 820003, "index": 2, "initial_policy": "endpoint_error"},
+    {"kind": "independent_corner", "seed": 820004, "index": 3, "initial_policy": "endpoint_mixed"}
+  ],
+  "conditions": [
+    {"family": "physical", "dispersion": 0.003, "physical_epsilon": 0.003},
+    {"family": "physical", "dispersion": 0.01, "physical_epsilon": 0.01},
+    {"family": "physical", "dispersion": 0.03, "physical_epsilon": 0.03},
+    {"family": "physical", "dispersion": 0.1, "physical_epsilon": 0.1},
+    {"family": "main_threshold", "dispersion": 0.03, "physical_epsilon": 0.003},
+    {"family": "main_threshold", "dispersion": 0.1, "physical_epsilon": 0.003},
+    {"family": "main_threshold", "dispersion": 0.2, "physical_epsilon": 0.003},
+    {"family": "kappa", "dispersion": 0.03, "physical_epsilon": 0.003},
+    {"family": "kappa", "dispersion": 0.1, "physical_epsilon": 0.003},
+    {"family": "kappa", "dispersion": 0.2, "physical_epsilon": 0.003},
+    {"family": "auxiliary_thresholds", "dispersion": 0.03, "physical_epsilon": 0.003},
+    {"family": "auxiliary_thresholds", "dispersion": 0.1, "physical_epsilon": 0.003}
+  ],
+  "arms": ["learning", "initial_frozen", "initial_gains_recovery_learning", "calibrated_fixed"],
+  "fixed_candidates": {
+    "uniform_gains": [1.65, 1.8, 2.0, 2.4, 3.2],
+    "port_role_gains": [[1.8, 1.2, 1.8]],
+    "learned_template_multipliers": [1.0, 1.1],
+    "recovery_b": 1.1,
+    "physical_caps": "The commanded fixed allocation is identical across held-out devices; each realised gain is min(commanded gain, that device's physical cap). Initial-frozen retains both the initial gains and b. The recovery-only arm freezes initial gains but lets b learn.",
+    "selection": "Per condition, maximize number of calibration devices passing the unconditioned criteria, then minimize missed plus extra spikes, then failing cells, then mean active-port gain. Evaluate the selected allocation without retuning on the four held-out devices."
+  },
+  "parameter_semantics": {
+    "main_threshold": "Independent cell trigger thresholds 1*(1+dispersion*x). The active reset remains q=1; FAST lasts 1 and emissions keep the canonical waveform. This does not test variable pulse amplitude/duration.",
+    "kappa": "Independent cell leak .5*(1+dispersion*x), shared by that cell's main and three auxiliary READY equations. Other vector fields stay unchanged.",
+    "auxiliary_thresholds": "Independent per-port perturbations of the three transition charges (1,.8,.1); rest RM=.025 and actuation factors stay fixed. Full MARK dose is .5*(first-second), full ERROR dose is 8*(third-RM)."
+  },
+  "outcomes": {
+    "primary": "Every graph-active cell has exactly one spike in every future source window, graph-inactive cells have none, and every adjacent correctly matched interval differs by at most 1e-7. All six future waves count, including the first at 230.",
+    "secondary": "The same criteria after dropping the first future wave as a conditioning pulse; reported separately, never substituted for primary success.",
+    "counts": "Missing and extra spikes across all 216 cells; final-layer counts also reported. Source-window matching is diagnostic; late/ambiguous responses require causal replay.",
+    "interval_error": "Maximum error only over adjacent waves with exactly one response each. Missing pairs are explicitly counted; null means no measurable matched interval.",
+    "gains": "Mean, maximum and sum on the 540 graph-active input ports at t=230; the non-learning allocation is chosen on calibration devices only.",
+    "work": "Simulator's cumulative main+auxiliary+actuation work during the six-wave future horizon; not the E reserve or a fabrication energy measurement.",
+    "failure_search": "For a held-out learning failure in a varied-threshold/leak family, rerun the same draw at half dispersion and at zero added dispersion; these are labeled post-hoc diagnostics."
+  },
+  "limitations": [
+    "Four held-out devices per condition are a pilot, not a population success-rate estimate.",
+    "The preset search is a finite candidate set, not optimization over every fixed allocation.",
+    "Presets may differ between declared conditions, but are identical across held-out devices within a condition; this gives the fixed baseline prior knowledge of the condition.",
+    "The template baseline is fitted offline using two other learned devices, then frozen; it is not online learning on an evaluation device.",
+    "No new box proof, fabrication tolerance or noise robustness is asserted."
+  ]
+}

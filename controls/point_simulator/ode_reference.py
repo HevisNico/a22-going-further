@@ -7,9 +7,10 @@ Floating-point deterministic event ordering is not a weak-order certificate.
 import math
 import numpy as np
 from scipy.integrate import solve_ivp
-from engine import A,K,R,RM,BMAX
+from engine import A,K,R,RM,BMAX,thresholds
 
 def simulate_ode(arrivals,device,end,mode='a22',fixed=None):
+    levels=thresholds(device);kappa=device.kappa;trigger=device.main_threshold
     pars=np.array(device.params);cap=np.log(pars[:,0]);lm=pars[:,1];ls=pars[:,2];le=pars[:,3];mult=pars[:,4]
     z=np.array(device.initial_z) if fixed is None else np.log(fixed['g'])
     b=device.initial_b if fixed is None else fixed['b']
@@ -25,8 +26,8 @@ def simulate_ode(arrivals,device,end,mode='a22',fixed=None):
             if kind=='on':orig[j]=when
             idx+=1
         bound=min(end,ext[idx][0] if idx<len(ext) else end)
-        if main==0 and not any(aux) and not any(raw) and y[0]<1 and max(y[1:4])<1:
-            decay=math.exp(-K*(bound-t))
+        if main==0 and not any(aux) and not any(raw) and y[0]<trigger and all(y[j+1]<levels[j,0] for j in range(3)):
+            decay=math.exp(-kappa*(bound-t))
             y[0]=R+(y[0]-R)*decay;y[1:4]=RM+(y[1:4]-RM)*decay
             t=bound
             continue
@@ -34,15 +35,15 @@ def simulate_ode(arrivals,device,end,mode='a22',fixed=None):
             q=v[0];m=v[1:4];zz=v[4:7];bb=v[7]
             p=np.where(raw,A*np.exp(-A*(now-orig)),0.)
             drive=float(np.dot(np.exp(zz),p))
-            dq=K*(R-q)+drive if main==0 else -A*q if main==1 else -bb*q
-            dm=np.array([K*(RM-m[j])+mult[j]*p[j] if aux[j]==0 else -[0,lm[j],ls[j],le[j]][aux[j]]*m[j] for j in range(3)])
+            dq=kappa*(R-q)+drive if main==0 else -A*q if main==1 else -bb*q
+            dm=np.array([kappa*(RM-m[j])+mult[j]*p[j] if aux[j]==0 else -[0,lm[j],ls[j],le[j]][aux[j]]*m[j] for j in range(3)])
             dz=np.array([8*le[j]*m[j] if lg and main==0 and aux[j]==3 and not gc[j] else 0 for j in range(3)])
             db=.5*sum(lm[j]*m[j] for j in range(3) if aux[j]==1) if lb and main!=0 and not bc else 0.
             wm=drive if main==0 else A*q if main==1 else 1.1
             wa=sum(mult[j]*p[j] if aux[j]==0 else [0,lm[j],ls[j],le[j]][aux[j]]*m[j] for j in range(3))
             return [dq,*dm,*dz,db,wm,wa,float(sum(dz))+db]
-        specs=[('main',0,1 if main==0 else .25 if main==1 else R,1 if main==0 else -1)]
-        specs += [('aux',j+1,[1,.8,.1,RM][aux[j]],1 if aux[j]==0 else -1) for j in range(3)]
+        specs=[('main',0,trigger if main==0 else .25 if main==1 else R,1 if main==0 else -1)]
+        specs += [('aux',j+1,[*levels[j],RM][aux[j]],1 if aux[j]==0 else -1) for j in range(3)]
         specs += [('gaincap',j+4,cap[j],1) for j in range(3) if lg and not gc[j]]
         if lb and not bc:specs.append(('bcap',7,BMAX,1))
         functions=[]
@@ -60,7 +61,7 @@ def simulate_ode(arrivals,device,end,mode='a22',fixed=None):
         for i in sorted(actual):
             kind,j,target,_=specs[i];y[j]=target
             if kind=='main':
-                if main==0:main=1;out.append(t)
+                if main==0:main=1;out.append(t);y[0]=1.
                 elif main==1:main=2
                 else:main=0
             elif kind=='aux':aux[j-1]=(aux[j-1]+1)%4

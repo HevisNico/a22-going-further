@@ -66,14 +66,52 @@ than 1.3 apart (`validation_A15.py`, line 412). So on each port a deposit never 
 pulse of that port, and an amplitude stored at admission is the amplitude during the whole raw
 pulse.
 
-**F5 (slope-free first-crossing cover).** `_first_crossing_cover(f, hi)` (`affine/commutation.py`,
-line 135) requires f(0) < 0 and f(hi) ≥ 0 for every ε. It bisects [0, hi] depth-first, left piece
-first, and evaluates f on closed pieces. A piece with f.hi < 0 has Q < 1 at every point; the first
-piece with f.lo ≥ 0 has Q ≥ 1 at its left end, which bounds the first contact from above; the
-leftmost undecided or positive piece bounds it from below, since every piece to its left was
-negative. The result [lower, upper] therefore encloses the first contact
-F = inf{u ∈ [0, hi] : Q(t₀ + u) ≥ 1}. This is `FirstCrossing.lean`. The firing of R is this first
-contact.
+**F5 (slope-free first-crossing cover, and the upward crossing).** The model fires at the first
+*upward* crossing of the threshold, not at a contact. On a READY segment, define
+
+    F↑ = inf{ t ≥ t₀ : Q(t) > 1 }.
+
+(a) *Structure of Q.* Between consecutive breakpoints (arrival dates and raw ends, finitely many on
+the segment), F3 and F4 give Q(t) = R + α e^(−κt) + β e^(−At), with constant α and β. With R = 0.1
+and κ ≠ A, Q − 1 is a nonzero exponential sum with three distinct exponents (0, −κ, −A) on each
+piece, so it has at most two zeros there. Hence Q − 1 has finitely many zeros on the segment, and Q
+is never equal to 1 on an interval. A tangency (a contact without crossing) is therefore an
+isolated point. Since Q(t₀) < 1, F↑ is the first time at which Q passes above 1: Q ≤ 1 on [t₀, F↑],
+Q(F↑) = 1, and Q > 1 on (F↑, F↑ + η) for some η > 0. This is the model's firing time.
+
+(b) *The cover.* `_first_crossing_cover(f, hi)` (`affine/commutation.py`, line 135) requires
+f(0) < 0 for every ε. It bisects [0, hi] depth-first, left piece first, and evaluates f on closed
+pieces. It returns [lower, upper]:
+- *lower* is the left end of the leftmost piece that is not certified negative. Every point
+  before it has Q < 1, so F↑ ≥ lower.
+- If a piece [a, z] with a < z has f.lo ≥ 0, then Q ≥ 1 on it. By (a), Q > 1 at all but finitely
+  many points of [a, z], hence at points arbitrarily close to a, so F↑ ≤ a. *upper* is the
+  smallest such a.
+- If no such piece is found, upper = hi. Then F↑ ≤ hi requires **Q(t₀ + hi) > 1 strictly**: a
+  contact at hi alone could be a tangency, after which the cell need not fire. This strict sign is
+  established on every path by F7.
+
+So [lower, upper] encloses F↑, the first upward crossing, and not merely the first contact. The
+abstract core (`FirstCrossing.lean`) encloses the first contact. Points (a) and F7 are what make
+that contact an upward crossing on these paths.
+
+**F7 (strict sign at the right end).** The cover is called with three kinds of right end:
+- `first_fire` (Section 6) checks `(Q(boundary) − 1).lo > 0`. The enclosure contains the true value,
+  so Q(boundary) > 1 strictly, with no further argument.
+- `_crossing_witness` (E2, Section 4, and the peak fallback, Section 9), and the end `hi` in
+  `_fire_root`, check `f(u).lo ≥ 0` at a single time u > 0. This is non-strict. Strictness comes
+  from the inherited open-image lemma (theorem, Section 5; `StrictRoot.lean`, two-point form):
+  at a fixed positive time, the computed enclosure of the charge contains an open neighbourhood of
+  the true value, for every ε. f(u).lo ≥ 0 then gives Q(u) > 1.
+
+  The lemma applies because Q(u) − R is a sum of terms that each contain a fresh exponential at a
+  nonzero argument: the homogeneous term at elapsed time u > 0, and every pulse term with positive
+  age. Terms of zero age are exactly 0. If all terms were 0, Q(u) = R < 1, so the witness test
+  would fail. In tight mode, the charge is `charge_bound`, the intersection of two such enclosures
+  (both computed with the same outward arithmetic), and F2 keeps the open neighbourhood.
+
+  The inherited proof uses the same argument for the same function on route E (review guide of
+  the base result, task 2).
 
 **F6 (normalized segment cover).** For an affine time τ with τ ≥ t₀, the probe
 τ − λ(τ − t₀), with λ an interval, encloses every point of [t₀(ε), τ(ε)] whose normalized position
@@ -143,13 +181,14 @@ fixed on the window (the premises and F4). By F3, Q above is the exact charge up
 The raw cuts are inside the pulse terms. Arrivals after t contribute h₊ = 0, and `dep.pulse` of an
 age box that reaches below 0 evaluates `nonnegative()`, whose range contains 0. A certified
 witness date with Q ≥ 1 for every ε is searched on [0, H], H being strictly before the next
-pending event. If none is found, the route declines. F5 then encloses the first contact.
+pending event. If none is found, the route declines. F5 then encloses the first upward crossing,
+with the strict sign at the witness given by F7.
 
 **Claim (item 3).** If Q < 1 on the whole segment from t₀ to an event date τ, then τ strictly
 precedes the fire.
 
-**Argument.** This is F6 and `_strict_prefix` applied to the same exact Q: no contact on [t₀, τ],
-so F > τ.
+**Argument.** This is F6 and `_strict_prefix` applied to the same exact Q: Q < 1 on the closed
+segment [t₀, τ], hence by continuity on [t₀, τ + η) for some η > 0, so F↑ > τ.
 
 **Claim (item 4).** Each admissible order of the group's events is computed with every possible
 fire position k. A position is dropped only if no trajectory realizes it.
@@ -190,9 +229,9 @@ in normalized coordinates of the boundary.
 
 **Argument.** The advance is to the next event, so no input is admitted before the boundary. Q is
 `charge_bound` of the memory, an enclosure by Section 3 (F3, F4). The endpoint check
-`(Q(boundary) − 1).lo > 0` and F5 on the normalized segment (F6) enclose the first contact strictly
+`(Q(boundary) − 1).lo > 0`, which is strict (F7), and F5 on the normalized segment (F6) enclose the first upward crossing strictly
 before the boundary. The affine root is used instead only when the derivative is positive on the
-whole normalized interval, so its root is the unique, hence first, crossing. The kernel then
+whole normalized interval, so its root is the unique crossing, and it is upward. The kernel then
 applies the unchanged `fire_reset`.
 
 ## 7. No-fire recovery group (item 12)
@@ -230,7 +269,8 @@ emission) are those of Fix R, whose argument is inherited.
 
 **Peak fallback** (`_fire_root`, branch `ratio.lo <= 0`, and the witness branch). No monotone
 prefix is used. A crossing at a witness date, certified for every ε (`_crossing_witness`), and
-f(0) < 0 are the premises of F5, which encloses the first contact.
+f(0) < 0 are the premises of F5, which encloses the first upward crossing (strict sign at the
+witness: F7).
 
 **Fast-window retry** (`_resolve(..., tight=True)`). It is entered only after the strict
 end-of-fast-section check refused. The same route is recomputed with the guard function evaluated

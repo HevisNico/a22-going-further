@@ -103,7 +103,10 @@ as `fire_arrival_commutation` route E2 and `E2_subthreshold_prefix`.
 
 **Questions.**
 1. Is the "no READY ERROR deposit in the window" premise checked at every call?
-2. Can pruning (item 4) ever drop a position realized by some device, for example at equal dates?
+2. The model fires at the first *upward* crossing. Do F5(a) (finitely many contacts) and F7 (strict
+   sign at the witness, from the inherited open-image lemma) exclude a tangency at the right end of
+   the cover on every path?
+3. Can pruning (item 4) ever drop a position realized by some device, for example at equal dates?
 
 ## Task 6 — Restored READY memory, relative first crossing, no-fire recovery group (items 5, 9, 12)
 

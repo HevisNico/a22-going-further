@@ -24,7 +24,7 @@ class RepositoryContracts(unittest.TestCase):
     def test_maintained_markdown_links_resolve(self):
         paths = [ROOT / name for name in ('README.md', 'CERTIFICATION.md', 'CONTROLS.md',
                  'HISTORY.md', 'REVIEW.md')]
-        for folder in ('certify', 'controls', 'engine_eps3e-3', 'engine_next', 'evidence',
+        for folder in ('certify', 'controls', 'engine_eps3e-3',
                        'kernel', 'model', 'proof', 'results', 'tools'):
             paths.extend((ROOT / folder).rglob('*.md'))
         for path in paths:

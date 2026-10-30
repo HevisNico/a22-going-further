@@ -54,5 +54,5 @@ absorbed the whole arrival uncertainty through the division by a plain slope enc
   memory, lemma E and E2 are unchanged.
 - No event order, branch, history, horizon or budget is changed or enlarged.
 - Shared regression tests are in `tests/engine/test_relative_coordinates.py`. They exercise the
-  frozen engine and `engine_next` separately: independent point/closed-form roots, invariance under
+  frozen ±0.3 % engine: independent point/closed-form roots, invariance under
   a common clock translation, and fallback on an undecidable or wider relative enclosure.

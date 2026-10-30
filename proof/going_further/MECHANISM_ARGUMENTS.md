@@ -305,3 +305,19 @@ forest.
 coefficients and adds the absolute values of the others, rounded upwards, to the remainder e. For
 every ε, the dropped part Σ dₖεₖ lies in [−Σ|dₖ|, Σ|dₖ|], so the truncated form encloses the
 original one. This holds for every KMAX; the value only changes precision and running time.
+
+
+## Development correction: fork summaries in engine_next
+
+The published ±0.3 % census has no history-fork leaves. Its frozen engine and proof are unchanged.
+In `engine_next`, Fix F requires a common exact terminal clock and quiescent modes in every leaf;
+a missing state, incompatible mode or pending activity is refused. Equal pulse counts remain
+mandatory. The unchanged kernel join retains the union of actuation and deposit histories.
+Scalar charges, rates, gains, cap flags and learning summaries are rebuilt from that joined state;
+auxiliary and resource boxes enclose all leaves. Thus a cap reached in just one leaf is not
+reported as a cap reached in every leaf. Output k is still the hull of every leaf's output k.
+Proof records and recovery groups are concatenated from all leaf executions, including repeated
+common prefixes. Their counts are an inventory of executions, not unique physical events.
+The shared tests check a mixed capped/uncapped union, retained proof records, round-trip
+serialization, incompatible terminal states, optional emissions and fork-budget refusal.
+This correction does not itself certify a new box: it requires a fresh campaign.

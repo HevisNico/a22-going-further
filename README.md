@@ -153,6 +153,7 @@ Point simulations of the full network (numerical evidence, summarized in
 |---|---|
 | `kernel/` | The kernel R in English, and the checksums of the executable kernel |
 | `model/` | The original model definition (French) and specification |
+| `engine_next/` | Uncertified development copy with the audit fixes; the certified engine stays frozen |
 | `engine_eps3e-3/` | The verification engine of the ±0.3 % box, frozen; `CHANGES_FROM_BASE.diff` against the base engine. Each box has its own engine directory |
 | `certify/` | Certification tools and `verify.py` |
 | `results/` | One folder per certified box: statement, campaign identity, run manifest, certificates, controls |
@@ -181,40 +182,7 @@ Point simulations of the full network (numerical evidence, summarized in
 
 ## How this was built
 
-This work is done with two AI assistants, **Claude** (Anthropic) and **ChatGPT** (OpenAI), under
-the direction of Nicolas Breuillaud.
-
-**Nicolas Breuillaud** is the author of the model, the Reset Operator and the research questions.
-He decides each step and runs the campaigns.
-
-**ChatGPT** produced:
-- the point simulator and the independent ODE integrator;
-- the falsification campaigns at ±10 %, the prospective 29-pulse cohort, the adversarial search and
-  the ε scans;
-- the single-cell set-valued verifier;
-- several engine mechanisms: the charge-join envelope, the restored READY memory, the gain range at
-  admission, the E2 prefix order, the fast-window retry, `charge_bound`, the relative first
-  crossing and the no-fire recovery group.
-
-**Claude** produced:
-- the audits of each delivery;
-- the diagnosis of each campaign refusal;
-- the engine mechanisms R2, E2, M, the peak fallback, H, F, Fix T, Fix T′ and the KMAX change;
-- the certification tools in `certify/` and `controls/`;
-- the Lean formalization of the strict-root core;
-- the documentation of this repository.
-
-Each assistant also checked the other's work.
-
-The author relies on the assistants for parts of the mathematics and of the code that he has not
-checked in full himself. Hence the safeguards:
-- every campaign is bound to its exact code by hashes;
-- every layer is re-read by a separate process;
-- every certificate is recomputed by an independent program;
-- every mechanism has a stated proof obligation;
-- point simulations must fall inside the certified enclosures.
-
-No independent human review has been done yet.
+This work is done with two AI assistants, **Claude** (Anthropic) and **ChatGPT** (OpenAI), under the direction of Nicolas Breuillaud.
 
 ## License
 

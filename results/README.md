@@ -6,5 +6,5 @@ statement, the campaign identity, the run manifest and every terminal certificat
 
 | Box | Status |
 |---|---|
-| ε = 3e-3 | **Certified**: 18/18 layers, 12/12 checks of `verify.py`, inclusion control passed ([`eps3e-3/`](eps3e-3/README.md)) |
+| ε = 3e-3 | **Certified**: 18/18 layers, 13/13 checks of `verify.py` with the full campaign and as-run engine, inclusion control passed ([`eps3e-3/`](eps3e-3/README.md)) |
 | ε = 1e-2 | Next |

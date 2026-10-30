@@ -49,9 +49,14 @@ def h(x):
  assert 0<=x.l<=x.u<=1
  return A/(A-K)*(exp(-K*x)-exp(-A*x))
 
+def parameter_factor(epsilon):
+ """Outward parameter endpoints, independent of the ambient Decimal context."""
+ e=D(str(epsilon));assert e.is_finite() and 0<e<1
+ return B(LO.subtract(D(1),e),HI.add(D(1),e))
+
 def main():
  if not __debug__:raise RuntimeError('Run without -O')
- src,cf,out=map(Path,sys.argv[1:4]);E=D(sys.argv[4] if len(sys.argv)>4 else json.loads(src.read_text())['campaign']['parameters']['epsilon_relative']);LOW=str(1-E);UP=str(1+E);data=json.loads(src.read_text());c=json.loads(cf.read_text())
+ src,cf,out=map(Path,sys.argv[1:4]);E=D(sys.argv[4] if len(sys.argv)>4 else json.loads(src.read_text())['campaign']['parameters']['epsilon_relative']);factor=parameter_factor(E);LOW,UP=factor.l,factor.u;data=json.loads(src.read_text());c=json.loads(cf.read_text())
  assert hashlib.sha256(src.read_bytes()).hexdigest()==c['terminal_input_sha256'] and c['campaign']==data['campaign']
  contract=validate_inputs(data,c,E)
  requested_bound=sys.argv[5] if len(sys.argv)>5 else '20'
@@ -63,7 +68,7 @@ def main():
  err=D0+DM+DS;end=err+DE;assert err.l>1 and end.u<D('1.3')
  LM=log(B('1.25'))/B('.02')*B(UP);LS=3*log(B(2))/B('1.06')*B(UP);LE=A/B('.15')*B(UP)
  assert max(LS.u,LE.u)<LM.l
- W=(3*B(str(4*(1+E)))+3*B(M.u)+1)*A+B('1.1')+B('4.5')*LM+B('2.4')*LE;assert W.u<500
+ W=(3*(4*B(UP))+3*B(M.u)+1)*A+B('1.1')+B('4.5')*LM+B('2.4')*LE;assert W.u<500
  pmin=1+LN25/B('1.1');cells={(x['layer'],x['lane']):x for x in data['cells']};rows={(r['layer'],r['lane']):r for r in c['cells']}
  prev=[B(0)]+[None]*11;quiet=D(0);minima={};active=masked_n=influential_n=0;masked_set=[]
  for n in range(1,19):

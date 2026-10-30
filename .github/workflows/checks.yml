@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        engine: [engine_eps3e-3]
+        engine: [engine_eps3e-3, engine_next]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +29,10 @@ jobs:
       - name: Unit tests
         working-directory: ${{ matrix.engine }}
         run: python -B -m unittest discover -s tests
+      - name: Shared root and fork regression tests
+        env:
+          A22_TEST_ENGINE: ${{ matrix.engine }}
+        run: python -B -m unittest discover -s tests/engine
       - name: Kernel unchanged
         working-directory: ${{ matrix.engine }}/kernel
         run: sha256sum -c --quiet ../../kernel/KERNEL_SHA256SUMS
@@ -46,6 +50,10 @@ jobs:
           python-version: '3.12'
       - name: Tests of the certification tools
         run: python -B -m unittest discover -s certify/tests
+      - name: Inclusion control tests
+        run: python -B -m unittest discover -s controls/tests
+      - name: Documentation links and certified-engine freeze
+        run: python -B -m unittest discover -s tests/repository
       - name: Verify every committed box
         run: |
           set -e

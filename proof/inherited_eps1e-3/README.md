@@ -5,11 +5,11 @@ that checks its finite part.
 
 | Step | Statement | Argument | Finite checks |
 |---|---|---|---|
-| 1. Model | the hybrid cell, its parameters, the network and the source | [`model/CURRENT_SPEC.md`](../model/CURRENT_SPEC.md), with the archived equations linked there | — |
-| 2. Initial section | from every admissible initial state, the first source pulse is admitted from known invariants | [`base/LEARNING_COVERAGE_THEOREM_EN.txt`](base/LEARNING_COVERAGE_THEOREM_EN.txt), [`extensions/COVERAGE_THEOREM_GENERAL_EPS_EN.txt`](extensions/COVERAGE_THEOREM_GENERAL_EPS_EN.txt) | `tools/certify_initial_section.py` → `terminal/initial_section_eps1e-3.json` |
-| 3. Training coverage | the enclosure computed by the engine contains every trajectory, up to the cut at T = 230 | [`base/LEARNING_COVERAGE_THEOREM_EN.txt`](base/LEARNING_COVERAGE_THEOREM_EN.txt), [`base/GROUP_ENTRY_CLOCK_LEMMA_EN.txt`](base/GROUP_ENTRY_CLOCK_LEMMA_EN.txt), [`base/STRICT_ROOT_LEMMA_EN.txt`](base/STRICT_ROOT_LEMMA_EN.txt); at ±1e-3: [`extensions/COVERAGE_THEOREM_GENERAL_EPS_EN.txt`](extensions/COVERAGE_THEOREM_GENERAL_EPS_EN.txt) (lemma E), [`extensions/LEMMAS_C7_C6_EN.txt`](extensions/LEMMAS_C7_C6_EN.txt) (C7, C6, P), [`extensions/lemma_e_outward_rounding/`](extensions/lemma_e_outward_rounding/README.md); for 28 pulses and T = 230: [`extensions/CALENDAR_COVERAGE_BRIDGE.md`](extensions/CALENDAR_COVERAGE_BRIDGE.md) | the campaign (`campaign/`), `tools/extract_terminal.py`, `tools/audit_lineage.py`, `tools/audit_commutations.py` |
-| 4. Entry into Q28 | at T = 230 every trajectory is in the explicit domain Q28 | the same documents | `terminal/all_terminal_exact.json`, `tools/build_q_domain.py` → `terminal/invariant_domain_Q28.json` |
-| 5. Future regime | from Q28, for every source sequence with gaps ≥ 20, each of the 191 active cells fires exactly once per pulse and the network returns to Q28 | [`base/FUTURE_INVARIANCE_PROOF_EN.txt`](base/FUTURE_INVARIANCE_PROOF_EN.txt), [`extensions/FUTURE_INVARIANCE_GENERAL_EPS_EN.txt`](extensions/FUTURE_INVARIANCE_GENERAL_EPS_EN.txt) | `tools/certify_future.py`, `tools/verify_future.py` → `terminal/future_certificate.json`, `terminal/independent_check.json` |
+| 1. Model | the hybrid cell, its parameters, the network and the source | [`model/CURRENT_SPEC.md`](../../model/CURRENT_SPEC.md), with the archived equations linked there | — |
+| 2. Initial section | from every admissible initial state, the first source pulse is admitted from known invariants | [`base/LEARNING_COVERAGE_THEOREM_EN.txt`](base/LEARNING_COVERAGE_THEOREM_EN.txt), [`extensions/COVERAGE_THEOREM_GENERAL_EPS_EN.txt`](extensions/COVERAGE_THEOREM_GENERAL_EPS_EN.txt) | `certify/certify_initial_section.py` → `results/eps3e-3/terminal/initial_section.json` |
+| 3. Training coverage | the enclosure computed by the engine contains every trajectory, up to the cut at T = 230 | [`base/LEARNING_COVERAGE_THEOREM_EN.txt`](base/LEARNING_COVERAGE_THEOREM_EN.txt), [`base/GROUP_ENTRY_CLOCK_LEMMA_EN.txt`](base/GROUP_ENTRY_CLOCK_LEMMA_EN.txt), [`base/STRICT_ROOT_LEMMA_EN.txt`](base/STRICT_ROOT_LEMMA_EN.txt); at ±1e-3: [`extensions/COVERAGE_THEOREM_GENERAL_EPS_EN.txt`](extensions/COVERAGE_THEOREM_GENERAL_EPS_EN.txt) (lemma E), [`extensions/LEMMAS_C7_C6_EN.txt`](extensions/LEMMAS_C7_C6_EN.txt) (C7, C6, P), [`extensions/lemma_e_outward_rounding/`](extensions/lemma_e_outward_rounding/README.md); for 28 pulses and T = 230: [`extensions/CALENDAR_COVERAGE_BRIDGE.md`](extensions/CALENDAR_COVERAGE_BRIDGE.md) | the campaign (`campaign/`), `certify/extract_terminal.py`, `certify/audit_lineage.py`, `certify/audit_commutations.py` |
+| 4. Entry into Q28 | at T = 230 every trajectory is in the explicit domain Q28 | the same documents | `terminal/all_terminal_exact.json`, `certify/build_q_domain.py` → `terminal/invariant_domain_Q28.json` |
+| 5. Future regime | from Q28, for every source sequence with gaps ≥ 20, each of the 191 active cells fires exactly once per pulse and the network returns to Q28 | [`base/FUTURE_INVARIANCE_PROOF_EN.txt`](base/FUTURE_INVARIANCE_PROOF_EN.txt), [`extensions/FUTURE_INVARIANCE_GENERAL_EPS_EN.txt`](extensions/FUTURE_INVARIANCE_GENERAL_EPS_EN.txt) | `certify/certify_future.py`, `certify/verify_future_general.py` → `terminal/future_certificate.json`, `terminal/independent_check.json` |
 | 6. Exact transmission | each active cell has a fixed latency, so intervals between pulses are preserved through all 18 layers | [`base/GLOBAL_THEOREM_AND_WORD_PRESERVATION_EN.txt`](base/GLOBAL_THEOREM_AND_WORD_PRESERVATION_EN.txt) | — |
 
 A guided tour of the first version of the argument (five propositions, the three most delicate points)
@@ -19,9 +19,9 @@ is its critical review of the training entry.
 
 ## Current model and historical references
 
-[`model/CURRENT_SPEC.md`](../model/CURRENT_SPEC.md) specifies the current parameter family,
+[`model/CURRENT_SPEC.md`](../../model/CURRENT_SPEC.md) specifies the current parameter family,
 initial states and 28-pulse/T = 230 protocol. `model/full_model_reference.md` and its copy inside
-`engine/reference/` preserve the historical reference and status text. Read their 128-pulse/T = 1116
+`engine_eps3e-3/reference/` preserve the historical reference and status text. Read their 128-pulse/T = 1116
 figures with the explicit substitutions in the current specification and calendar bridge below.
 
 ## The two layers of documents

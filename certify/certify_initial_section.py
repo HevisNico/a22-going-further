@@ -15,8 +15,10 @@ sys.path.insert(0,str(Path(__file__).resolve().parent))
 from certify_future_v33 import I,S,A,K,R,RM,h,exp,log_rational,bisect_threshold
 
 def main(dest,eps):
- e=Decimal(eps);assert 0<e<=Decimal('0.1')
- delta=I('1e-5');factor=I(str(1-e),str(1+e));C=4*factor
+ e=F(eps);assert 0<e<=F('0.1')
+ # Form the parameter box exactly before conversion to directed integers.
+ # Ambient Decimal arithmetic can round a positive epsilon away entirely.
+ delta=I('1e-5');factor=I(1-e,1+e);C=4*factor
  LM=log_rational(F(5,4))/I('.02')*factor
  LS=3*log_rational(2)/I('1.06')*factor
  LE=A/I('.15')*factor

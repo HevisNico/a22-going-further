@@ -6,7 +6,7 @@ Five files, all without `sorry`; their `#print axioms` list only `propext`, `Cla
 ## Strict-root core
 
 [`StrictRoot.lean`](StrictRoot.lean) formalizes, in Lean 4 with Mathlib, the abstract mathematical
-argument of Task 1 of [`REVIEW.md`](../../REVIEW.md): the strict-root lemma
+argument of Task 1 of [`REVIEW.md`](../../../REVIEW.md): the strict-root lemma
 (`proof/base/STRICT_ROOT_LEMMA_EN.txt`) and Sections 4–6 of
 `proof/base/LEARNING_COVERAGE_THEOREM_EN.txt`.
 
@@ -100,7 +100,7 @@ workflow `.github/workflows/lean.yml` builds the five files and fails if any `#p
 `sorryAx`. Locally:
 
 ```sh
-cd proof/lean
+cd proof/inherited_eps1e-3/lean
 lake update             # resolves Mathlib v4.35.0, writes lake-manifest.json
 lake exe cache get      # prebuilt Mathlib
 lake build
